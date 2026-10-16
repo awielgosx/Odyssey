@@ -1,230 +1,197 @@
 import { Html } from '@react-three/drei'
-import { useMemo, useState } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { directionById } from '../content/directions'
-import { useGame } from '../store'
-import { Cypress, LandmarkModel, M, OliveTree, Temple } from './Landmarks'
-import { rng, type IslandSpot } from './layout'
+import { voyageById } from '../content/voyages'
+import { stopComplete, useGame } from '../store'
+import { buildIsland } from './coast'
+import { LateFeeStall, TiresiasOar } from './Eggs'
+import { Cypress, LandmarkModel, M, OliveTree } from './Landmarks'
+import { STOPS, type IslandSpot, type Stop } from './layout'
 import { PAL } from './palette'
 import { cliffTexture } from './textures'
 
-function hash3(x: number, y: number, z: number) {
-  const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453
-  return s - Math.floor(s)
+const sandMat = new THREE.MeshStandardMaterial({ color: PAL.sand, roughness: 1, flatShading: true })
+const sandWallMat = new THREE.MeshStandardMaterial({ color: '#c9a56b', roughness: 1, flatShading: true })
+const grassMat = new THREE.MeshStandardMaterial({ color: PAL.olive, roughness: 1, flatShading: true })
+const grassHighMat = new THREE.MeshStandardMaterial({ color: '#7d8c40', roughness: 1, flatShading: true })
+const hillMat = new THREE.MeshStandardMaterial({ color: PAL.oliveDark, roughness: 1, flatShading: true })
+
+function cliffMaterial(seed: number) {
+  const t = cliffTexture().clone()
+  t.wrapS = THREE.RepeatWrapping
+  t.offset.x = (seed % 97) / 97
+  t.needsUpdate = true
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, flatShading: true })
 }
 
-// Push vertices outward/up by a position-keyed noise so seams stay closed.
-function jitter(geo: THREE.BufferGeometry, amount: number, seed: number, keepBottom = true) {
-  const pos = geo.attributes.position
-  const v = new THREE.Vector3()
-  geo.computeBoundingBox()
-  const minY = geo.boundingBox!.min.y
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i)
-    if (keepBottom && Math.abs(v.y - minY) < 1e-3) continue
-    const n = hash3(v.x + seed, v.y, v.z) - 0.5
-    const r = Math.hypot(v.x, v.z)
-    if (r > 1e-3) {
-      const k = 1 + n * amount
-      v.x *= k
-      v.z *= k
-    }
-    v.y += (hash3(v.z, v.x + seed, v.y) - 0.5) * amount * 0.6
-    pos.setXYZ(i, v.x, v.y, v.z)
-  }
-  geo.computeVertexNormals()
-  return geo
-}
+const rockCliffMat = new THREE.MeshStandardMaterial({ color: '#a98a6c', roughness: 1, flatShading: true })
 
-function Terrain({ spot }: { spot: IslandSpot }) {
-  const { radius: r, height: h, seed } = spot
-  const geos = useMemo(() => {
-    const beach = jitter(new THREE.CylinderGeometry(r * 1.12, r * 1.28, 0.7, 11, 1), 0.12, seed)
-    const cliff = jitter(new THREE.CylinderGeometry(r * 0.9, r * 1.02, h, 14, 2), 0.08, seed + 1)
-    const top = jitter(new THREE.CylinderGeometry(r * 0.86, r * 0.9, 0.22, 14, 1), 0.06, seed + 2)
-    return { beach, cliff, top }
-  }, [r, h, seed])
-  const cliffMat = useMemo(() => {
-    const t = cliffTexture().clone()
-    t.wrapS = THREE.RepeatWrapping
-    t.repeat.set(Math.round(r * 1.1), 1)
-    t.needsUpdate = true
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, flatShading: true })
-  }, [r])
-  const sand = useMemo(() => new THREE.MeshStandardMaterial({ color: PAL.sand, roughness: 1, flatShading: true }), [])
-  const grass = useMemo(() => new THREE.MeshStandardMaterial({ color: PAL.olive, roughness: 1, flatShading: true }), [])
-
-  const decor = useMemo(() => {
-    const rand = rng(seed)
-    const items: { kind: 'cypress' | 'olive' | 'rock'; p: [number, number, number]; s: number }[] = []
-    const n = 5 + Math.floor(rand() * 4)
-    for (let i = 0; i < n; i++) {
-      const a = rand() * Math.PI * 2
-      const d = r * (0.55 + rand() * 0.25)
-      const kind = rand() < 0.45 ? 'cypress' : rand() < 0.7 ? 'olive' : 'rock'
-      items.push({ kind, p: [Math.cos(a) * d, h + 0.1, Math.sin(a) * d], s: 0.7 + rand() * 0.6 })
-    }
-    for (let i = 0; i < 6; i++) {
-      const a = rand() * Math.PI * 2
-      const d = r * (1.15 + rand() * 0.25)
-      items.push({ kind: 'rock', p: [Math.cos(a) * d, 0.1, Math.sin(a) * d], s: 0.4 + rand() * 0.6 })
-    }
-    return items
-  }, [seed, r, h])
-
+// A coastline turned into a low-poly island: beach, painted cliff, grassy top, trees.
+export function Terrain({
+  poly,
+  height,
+  seed,
+  terrace,
+  scatter,
+  children,
+  plain,
+}: {
+  poly: THREE.Vector2[]
+  height: number
+  seed: number
+  terrace?: boolean
+  scatter?: number
+  children?: (spot: THREE.Vector3) => ReactNode
+  plain?: boolean
+}) {
+  const g = useMemo(() => buildIsland(poly, height, seed, { terrace, scatter }), [poly, height, seed, terrace, scatter])
+  const cliffMat = useMemo(() => (plain ? rockCliffMat : cliffMaterial(seed)), [seed, plain])
   return (
     <group>
-      <mesh geometry={geos.beach} position-y={-0.15} material={sand} receiveShadow castShadow />
-      <mesh geometry={geos.cliff} position-y={h / 2} material={cliffMat} castShadow receiveShadow />
-      <mesh geometry={geos.top} position-y={h + 0.02} material={grass} receiveShadow castShadow />
-      {decor.map((d, i) =>
+      <mesh geometry={g.beachWall} material={sandWallMat} receiveShadow />
+      <mesh geometry={g.beachTop} material={sandMat} receiveShadow />
+      <mesh geometry={g.cliff} material={cliffMat} castShadow receiveShadow />
+      <mesh geometry={g.top} material={grassMat} receiveShadow castShadow />
+      {g.terraceWall && <mesh geometry={g.terraceWall} material={rockCliffMat} castShadow receiveShadow />}
+      {g.terraceTop && <mesh geometry={g.terraceTop} material={grassHighMat} receiveShadow castShadow />}
+      {g.scatter.map((d, i) =>
         d.kind === 'cypress' ? (
-          <Cypress key={i} p={d.p} s={d.s} />
+          <Cypress key={i} p={[d.p.x, d.p.y, d.p.z]} s={d.s} />
         ) : d.kind === 'olive' ? (
-          <OliveTree key={i} p={d.p} s={d.s} />
+          <OliveTree key={i} p={[d.p.x, d.p.y, d.p.z]} s={d.s} />
+        ) : d.kind === 'hill' ? (
+          <mesh key={i} position={d.p} scale={[d.s * 1.6, d.s * 0.7, d.s * 1.3]} material={hillMat} castShadow receiveShadow>
+            <icosahedronGeometry args={[1, 0]} />
+          </mesh>
         ) : (
           <mesh key={i} position={d.p} scale={d.s} rotation={[d.s, d.s * 3, 0]} material={M.rock} castShadow receiveShadow>
             <dodecahedronGeometry args={[0.45, 0]} />
           </mesh>
         ),
       )}
+      {g.shoreRocks.map((r, i) => (
+        <mesh key={`r${i}`} position={r.p} scale={r.s} rotation={[r.s * 2, r.s * 5, 0]} material={M.rock} castShadow receiveShadow>
+          <dodecahedronGeometry args={[0.6, 0]} />
+        </mesh>
+      ))}
+      {children?.(g.landmarkSpot)}
     </group>
   )
 }
 
 function Mist({ r }: { r: number }) {
-  // Unexplored islands sit under a soft cloud cap.
-  const puffs = useMemo(() => {
-    const rand = rng(Math.round(r * 1000))
-    return Array.from({ length: 9 }, () => {
-      const a = rand() * Math.PI * 2
-      const d = rand() * r * 0.9
-      return { p: [Math.cos(a) * d, 3.4 + rand() * 1.4, Math.sin(a) * d] as [number, number, number], s: 1.1 + rand() * 1.1 }
-    })
-  }, [r])
+  const puffs = useMemo(
+    () =>
+      Array.from({ length: 10 }, (_, i) => {
+        const a = (i / 10) * Math.PI * 2 + i
+        const d = (0.25 + ((i * 37) % 10) / 14) * r
+        return { p: [Math.cos(a) * d, 3.2 + (i % 3) * 0.7, Math.sin(a) * d] as [number, number, number], s: 1.4 + (i % 4) * 0.45 }
+      }),
+    [r],
+  )
   return (
     <group>
       {puffs.map((p, i) => (
         <mesh key={i} position={p.p} scale={p.s}>
           <icosahedronGeometry args={[1, 1]} />
-          <meshStandardMaterial color="#fffaf2" emissive="#ffe6cc" emissiveIntensity={0.55} transparent opacity={0.9} flatShading roughness={1} />
+          <meshStandardMaterial color="#fffaf2" emissive="#ffe6cc" emissiveIntensity={0.5} transparent opacity={0.92} flatShading roughness={1} />
         </mesh>
       ))}
     </group>
   )
 }
 
-export function Island({ spot }: { spot: IslandSpot }) {
-  const dir = spot.directionId ? directionById(spot.directionId) : undefined
-  const visited = useGame((s) => s.visited.includes(spot.key))
-  const target = useGame((s) => s.target === spot.key)
-  const docked = useGame((s) => s.target === spot.key && !s.sailing)
-  const sailTo = useGame((s) => s.sailTo)
-  const [hover, setHover] = useState(false)
-  const showMist = !!dir && !visited && !target
+export type StopState = 'locked' | 'next' | 'current' | 'passed'
 
+export function useStopState(index: number): StopState {
+  const stopIndex = useGame((s) => s.stopIndex)
+  const furthest = useGame((s) => s.furthest)
+  if (index === stopIndex) return 'current'
+  if (index <= furthest) return 'passed'
+  if (index === furthest + 1) return 'next'
+  return 'locked'
+}
+
+export function useStopClick(stop: Stop) {
+  const sailTo = useGame((s) => s.sailTo)
+  const say = useGame((s) => s.say)
+  return () => {
+    const s = useGame.getState()
+    if (s.phase !== 'play') return
+    if (stop.index === s.stopIndex) return
+    if (stop.index > s.furthest + 1) {
+      const nxt = STOPS[s.furthest + 1]
+      say(`The sea lane reaches ${stop.label} later. Next stop: ${nxt.label}.`)
+      return
+    }
+    if (stop.index === s.furthest + 1 && !stopComplete(s, s.furthest)) {
+      say(`Finish the task at ${STOPS[s.furthest].label} before sailing on.`)
+      return
+    }
+    sailTo(stop.index)
+  }
+}
+
+// The flag above each stop: number, pillar badge and short name, so the map explains itself.
+export function StopTag({ stop, height }: { stop: Stop; height: number }) {
+  const state = useStopState(stop.index)
+  const sailing = useGame((s) => s.sailing)
+  const voyageId = useGame((s) => s.voyageId)
+  const landed = useGame((s) => (stop.directionId ? (s.landings[stop.directionId]?.grades.length ?? 0) > 0 : false))
+  const phase = useGame((s) => s.phase)
+  if (phase !== 'play' || (state === 'current' && !sailing)) return null
+  const dir = stop.directionId ? directionById(stop.directionId) : null
+  const recommended = dir ? voyageById(voyageId).recommended.includes(dir.id) : false
+  return (
+    <Html position={[0, height + 3.4, 0]} center distanceFactor={44} zIndexRange={[10, 0]}>
+      <div className={`flag ${state} ${dir ? dir.pillar : 'special'}`}>
+        {dir ? (
+          <>
+            <span className="flag-num">{dir.id}</span>
+            <span className="flag-pillar" aria-label={dir.pillar === 'proposition' ? 'Value proposition' : 'Value architecture'}>
+              {dir.pillar === 'proposition' ? 'P' : 'A'}
+            </span>
+            <span className="flag-name">{dir.short}</span>
+            {landed && <span className="flag-mark" title="You landed here">{'❦'}</span>}
+            {recommended && !landed && state !== 'locked' && <span className="flag-mark owl" title="Athena recommends landing here">{'★'}</span>}
+          </>
+        ) : (
+          <span className="flag-name">{stop.label}</span>
+        )}
+      </div>
+    </Html>
+  )
+}
+
+export function DirectionIsland({ stop }: { stop: Stop }) {
+  const spot = stop.island as IslandSpot
+  const dir = directionById(stop.directionId!)
+  const state = useStopState(stop.index)
+  const onClick = useStopClick(stop)
   return (
     <group
       position={[spot.x, 0, spot.z]}
-      onPointerOver={(e) => {
-        e.stopPropagation()
-        setHover(true)
-        document.body.style.cursor = 'pointer'
-      }}
-      onPointerOut={() => {
-        setHover(false)
-        document.body.style.cursor = ''
-      }}
       onClick={(e) => {
         e.stopPropagation()
-        sailTo(spot.key)
+        onClick()
       }}
+      onPointerOver={() => (document.body.style.cursor = 'pointer')}
+      onPointerOut={() => (document.body.style.cursor = '')}
     >
-      <Terrain spot={spot} />
-      <group position-y={spot.height + 0.12}>
-        {dir && (
-          <group scale={1.35}>
-            <LandmarkModel type={dir.landmark} />
+      <Terrain poly={spot.poly} height={spot.height} seed={spot.seed} terrace={spot.radius > 5.2} scatter={9}>
+        {(p) => (
+          <group position={p}>
+            <group scale={1.4}>
+              <LandmarkModel type={dir.landmark} />
+            </group>
+            {dir.id === 5 && <TiresiasOar position={[2.2, 0, 1.2]} />}
+            {dir.id === 7 && <LateFeeStall position={[-2.3, 0, 1.0]} />}
           </group>
         )}
-        {spot.key === 'ithaca' && <Ithaca />}
-      </group>
-      {showMist && <Mist r={spot.radius} />}
-      {dir && !docked && (
-        <Html position={[0, spot.height + 3.6, 0]} center distanceFactor={30} zIndexRange={[10, 0]}>
-          <div className={`isle-tag ${dir.pillar} ${hover || target ? 'lit' : ''} ${visited ? 'seen' : ''}`}>
-            <span className="isle-num">{dir.id}</span>
-            <span className="isle-name">{dir.short}</span>
-          </div>
-        </Html>
-      )}
-      {spot.key === 'ithaca' && (
-        <Html position={[0, spot.height + 4.4, 0]} center distanceFactor={30} zIndexRange={[10, 0]}>
-          <div className="isle-tag home">
-            <span className="isle-name">Ithaca · your business today</span>
-          </div>
-        </Html>
-      )}
-    </group>
-  )
-}
-
-function Ithaca() {
-  const houses = useMemo(() => {
-    const rand = rng(77)
-    return Array.from({ length: 9 }, () => {
-      const a = rand() * Math.PI * 2
-      const d = 2.2 + rand() * 2.4
-      return { p: [Math.cos(a) * d, 0, Math.sin(a) * d] as [number, number, number], s: 0.5 + rand() * 0.4, rot: rand() * Math.PI }
-    })
-  }, [])
-  return (
-    <group>
-      <Temple cols={6} w={3} d={2} h={1.6} />
-      {houses.map((h, i) => (
-        <group key={i} position={h.p} rotation-y={h.rot} scale={h.s}>
-          <mesh position={[0, 0.45, 0]} material={M.marble} castShadow receiveShadow>
-            <boxGeometry args={[1, 0.9, 0.8]} />
-          </mesh>
-          <mesh position={[0, 1.05, 0]} rotation-y={Math.PI / 4} material={M.clay} castShadow>
-            <coneGeometry args={[0.75, 0.35, 4]} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  )
-}
-
-export function Olympus({ spot }: { spot: IslandSpot }) {
-  const sailTo = useGame((s) => s.sailTo)
-  const geo = useMemo(() => jitter(new THREE.CylinderGeometry(1.9, spot.radius, spot.height, 10, 4), 0.16, spot.seed), [spot])
-  const snow = useMemo(() => jitter(new THREE.CylinderGeometry(2.05, spot.radius * 0.45, spot.height * 0.3, 10, 1), 0.08, spot.seed + 3), [spot])
-  return (
-    <group
-      position={[spot.x, 0, spot.z]}
-      onClick={(e) => {
-        e.stopPropagation()
-        sailTo(spot.key)
-      }}
-    >
-      <mesh position-y={-0.2}>
-        <cylinderGeometry args={[spot.radius * 1.2, spot.radius * 1.3, 0.6, 11]} />
-        <meshStandardMaterial color={PAL.sand} flatShading roughness={1} />
-      </mesh>
-      <mesh geometry={geo} position-y={spot.height / 2} castShadow receiveShadow>
-        <meshStandardMaterial color="#9c7f66" flatShading roughness={1} />
-      </mesh>
-      <mesh geometry={snow} position-y={spot.height * 0.86} castShadow>
-        <meshStandardMaterial color={PAL.marble} flatShading roughness={0.9} />
-      </mesh>
-      <group position-y={spot.height + 0.05} scale={0.9}>
-        <Temple cols={6} w={2.6} d={1.8} roof={M.gold} />
-      </group>
-      <Html position={[0, spot.height + 4.5, 0]} center distanceFactor={30} zIndexRange={[10, 0]}>
-        <div className="isle-tag olympus">
-          <span className="isle-name">Olympus · the council</span>
-        </div>
-      </Html>
+      </Terrain>
+      {state === 'locked' && <Mist r={spot.radius} />}
+      <StopTag stop={stop} height={spot.height} />
     </group>
   )
 }

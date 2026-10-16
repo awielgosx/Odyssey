@@ -1,23 +1,16 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { audio } from '../audio/engine'
 import { useGame } from '../store'
-import { islandByKey } from './layout'
 import { M } from './Landmarks'
+import { laneSlope, laneZ, NARROWS_X, STOPS } from './layout'
 import { PAL } from './palette'
 import { sailTexture } from './textures'
 
 // Shared, mutable ship state so the camera can follow without React re-renders.
-export const shipState = { pos: new THREE.Vector3(2.5, 0, 51.5), heading: Math.PI / 2 }
-
-function dockPoint(key: string, from: THREE.Vector3) {
-  const isl = islandByKey(key)
-  const c = new THREE.Vector3(isl.x, 0, isl.z)
-  const dir = from.clone().sub(c).setY(0)
-  if (dir.lengthSq() < 1e-4) dir.set(0, 0, 1)
-  dir.normalize()
-  return c.add(dir.multiplyScalar(isl.radius * 1.55 + 1.2))
-}
+const start = STOPS[0].dock
+export const shipState = { pos: new THREE.Vector3(start.x, 0, start.z), heading: 0, dir: 1, sailing: false }
 
 function useHullGeometry() {
   return useMemo(() => {
@@ -70,72 +63,103 @@ export function Ship() {
   const group = useRef<THREE.Group>(null)
   const oars = useRef<THREE.Group>(null)
   const sail = useRef<THREE.Mesh>(null)
-  const target = useGame((s) => s.target)
+  const eyes = useRef<THREE.Group>(null)
+  const bag = useRef<THREE.Mesh>(null)
+  const bagClicks = useRef(0)
+  const stopIndex = useGame((s) => s.stopIndex)
   const sailing = useGame((s) => s.sailing)
   const arrive = useGame((s) => s.arrive)
   const hull = useHullGeometry()
   const sailGeo = useSailGeometry()
   const hullMat = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, flatShading: true }), [])
-  const sailMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ map: sailTexture(), side: THREE.DoubleSide, roughness: 0.9, flatShading: true }),
-    [],
-  )
-  const voyage = useRef<{ curve: THREE.CatmullRomCurve3; t: number; dur: number } | null>(null)
+  const sailMat = useMemo(() => new THREE.MeshStandardMaterial({ map: sailTexture(), side: THREE.DoubleSide, roughness: 0.9, flatShading: true }), [])
+  const voyage = useRef<{ from: number; to: number; t: number; dur: number } | null>(null)
+  const stroke = useRef(0)
+  const blink = useRef(60 + Math.random() * 30)
+
+  // restore position after a reload
+  useEffect(() => {
+    const d = STOPS[useGame.getState().stopIndex].dock
+    shipState.pos.set(d.x, 0, d.z)
+  }, [])
 
   useEffect(() => {
     if (!sailing) return
-    const start = shipState.pos.clone()
-    const end = dockPoint(target, start)
-    const mid = start.clone().lerp(end, 0.5)
-    const side = new THREE.Vector3().subVectors(end, start).cross(new THREE.Vector3(0, 1, 0)).normalize()
-    mid.add(side.multiplyScalar(start.distanceTo(end) * 0.18))
-    const curve = new THREE.CatmullRomCurve3([start, mid, end])
-    voyage.current = { curve, t: 0, dur: Math.max(2.2, curve.getLength() / 9) }
-  }, [sailing, target])
+    const from = shipState.pos.x
+    const to = STOPS[stopIndex].dock.x
+    const dist = Math.abs(to - from)
+    const back = to < from
+    voyage.current = { from, to, t: 0, dur: Math.max(2, dist / (back ? 30 : 11)) }
+    shipState.dir = back ? -1 : 1
+    shipState.sailing = true
+    audio.sailing = true
+    audio.creak()
+  }, [sailing, stopIndex])
 
   useFrame(({ clock }, dt) => {
     const g = group.current
     if (!g) return
     const v = voyage.current
+    const time = clock.elapsedTime
     if (v) {
       v.t = Math.min(1, v.t + dt / v.dur)
       const e = v.t < 0.5 ? 2 * v.t * v.t : 1 - Math.pow(-2 * v.t + 2, 2) / 2
-      const p = v.curve.getPointAt(e)
-      const tan = v.curve.getTangentAt(Math.min(0.999, Math.max(0.001, e)))
-      shipState.pos.copy(p)
-      shipState.heading = Math.atan2(-tan.z, tan.x)
+      const x = v.from + (v.to - v.from) * e
+      shipState.pos.set(x, 0, laneZ(x))
       if (v.t >= 1) {
         voyage.current = null
+        shipState.sailing = false
+        audio.sailing = false
         arrive()
       }
     }
-    const time = clock.elapsedTime
+    const x = shipState.pos.x
+    const facing = Math.atan2(-laneSlope(x) * shipState.dir, shipState.dir)
+    shipState.heading = THREE.MathUtils.lerp(shipState.heading, facing, 0.1)
     g.position.set(shipState.pos.x, 0.05 + Math.sin(time * 1.6) * 0.08, shipState.pos.z)
     g.rotation.set(Math.sin(time * 1.3) * 0.04, shipState.heading, Math.sin(time * 1.1) * 0.05)
+
+    // oars: rowing while sailing, one splash per stroke
     if (oars.current) {
       const speed = v ? 6 : 1.2
-      oars.current.children.forEach((o, i) => {
-        o.rotation.y = Math.sin(time * speed + i * 0.0) * (v ? 0.45 : 0.08)
-      })
+      oars.current.children.forEach((o) => (o.rotation.y = Math.sin(time * speed) * (v ? 0.45 : 0.08)))
+      if (v) {
+        const s = Math.floor((time * speed) / Math.PI)
+        if (s !== stroke.current) {
+          stroke.current = s
+          if (s % 2 === 0) audio.oar()
+        }
+      }
     }
     if (sail.current) sail.current.scale.z = 1 + Math.sin(time * 2.2) * 0.12
+
+    // the bow eyes blink about once a minute
+    blink.current -= dt
+    if (eyes.current) eyes.current.scale.y = blink.current < 0.12 && blink.current > 0 ? 0.1 : 1
+    if (blink.current < 0) blink.current = 60 + Math.random() * 30
+
+    // sirens sing near the Narrows
+    const d = Math.abs(x - NARROWS_X)
+    audio.siren(Math.max(0, 1 - d / 20))
   })
 
   return (
-    <group ref={group} scale={1.1}>
+    <group ref={group} scale={1.15}>
       <mesh geometry={hull} material={hullMat} castShadow receiveShadow />
-      {[-1, 1].map((s) => (
-        <group key={s} position={[1.22, 0.38, s * 0.19]}>
-          <mesh rotation-y={s > 0 ? 0 : Math.PI} position-z={s * 0.005}>
-            <circleGeometry args={[0.08, 10]} />
-            <meshStandardMaterial color={PAL.marble} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh rotation-y={s > 0 ? 0 : Math.PI} position-z={s * 0.012}>
-            <circleGeometry args={[0.04, 8]} />
-            <meshStandardMaterial color={PAL.glaze} side={THREE.DoubleSide} />
-          </mesh>
-        </group>
-      ))}
+      <group ref={eyes}>
+        {[-1, 1].map((s) => (
+          <group key={s} position={[1.22, 0.38, s * 0.19]}>
+            <mesh rotation-y={s > 0 ? 0 : Math.PI} position-z={s * 0.005}>
+              <circleGeometry args={[0.08, 10]} />
+              <meshStandardMaterial color={PAL.marble} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh rotation-y={s > 0 ? 0 : Math.PI} position-z={s * 0.012}>
+              <circleGeometry args={[0.04, 8]} />
+              <meshStandardMaterial color={PAL.glaze} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        ))}
+      </group>
       <mesh position={[0, 1.35, 0]} material={M.wood} castShadow>
         <cylinderGeometry args={[0.035, 0.05, 1.9, 6]} />
       </mesh>
@@ -143,10 +167,32 @@ export function Ship() {
         <cylinderGeometry args={[0.025, 0.025, 1.9, 5]} />
       </mesh>
       <mesh ref={sail} geometry={sailGeo} material={sailMat} position={[0.06, 1.5, 0]} rotation-y={Math.PI / 2} castShadow />
+      {/* Aeolus' bag of winds, tied on deck */}
+      <mesh
+        ref={bag}
+        position={[-0.75, 0.62, 0]}
+        material={M.wood}
+        onClick={(e) => {
+          e.stopPropagation()
+          bagClicks.current++
+          if (bag.current) bag.current.scale.setScalar(1 + bagClicks.current * 0.15)
+          if (bagClicks.current >= 3) {
+            bagClicks.current = 0
+            if (bag.current) bag.current.scale.setScalar(1)
+            audio.thunder()
+            useGame.getState().findEgg('bag', 'The bag of winds bursts. Odysseus’ crew opened it too, within sight of home. (Odyssey, book 10)')
+          }
+        }}
+        onPointerOver={() => (document.body.style.cursor = 'help')}
+        onPointerOut={() => (document.body.style.cursor = '')}
+      >
+        <sphereGeometry args={[0.16, 6, 5]} />
+      </mesh>
       <group ref={oars}>
-        {Array.from({ length: 10 }, (_, i) => {
+        {Array.from({ length: 14 }, (_, i) => {
+          // fourteen oars: seven per side, like the seven directions in each sea
           const side = i % 2 === 0 ? 1 : -1
-          const x = -0.8 + Math.floor(i / 2) * 0.38
+          const x = -0.9 + Math.floor(i / 2) * 0.3
           return (
             <group key={i} position={[x, 0.42, side * 0.2]}>
               <mesh position={[0, -0.21, side * 0.45]} rotation-x={side * 2.0} material={M.wood}>

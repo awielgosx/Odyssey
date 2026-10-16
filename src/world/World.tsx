@@ -1,19 +1,39 @@
-import { CameraControls, Text } from '@react-three/drei'
 import marcellus from '@fontsource/marcellus/files/marcellus-latin-400-normal.woff?url'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette, HueSaturation, BrightnessContrast } from '@react-three/postprocessing'
+import { CameraControls, Text } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useGame } from '../store'
-import { Island, Olympus } from './Island'
-import { ISLANDS, islandByKey } from './layout'
+import { Dolphins } from './Eggs'
+import { DirectionIsland } from './Island'
+import { laneZ, NARROWS_X, STOPS, X0, SPACING } from './layout'
 import { Ocean } from './Ocean'
 import { PAL } from './palette'
 import { Ship, shipState } from './Ship'
+import { Aeolus, Islets, Ithaca, Lemnos, Narrows, Olympus, Troy } from './Specials'
 
-const SUN_DIR = new THREE.Vector3(-0.55, 0.32, -0.62).normalize()
-const FOG = { color: '#efc29a', near: 150, far: 340 }
+const SUN_DIR = new THREE.Vector3(-0.5, 0.36, -0.62).normalize()
+const FOG = { color: '#efc29a', near: 120, far: 330 }
+export const fogState = { near: FOG.near, far: FOG.far }
+
+function FogRig() {
+  const chart = useGame((s) => s.chart)
+  const scene = useThree((s) => s.scene)
+  useFrame(() => {
+    const near = chart ? 320 : FOG.near
+    const far = chart ? 900 : FOG.far
+    fogState.near += (near - fogState.near) * 0.05
+    fogState.far += (far - fogState.far) * 0.05
+    const f = scene.fog as THREE.Fog | null
+    if (f) {
+      f.near = fogState.near
+      f.far = fogState.far
+    }
+  })
+  return null
+}
 
 function SkyDome() {
   const mat = useMemo(
@@ -21,10 +41,11 @@ function SkyDome() {
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
+        fog: false,
         uniforms: {
           uTop: { value: new THREE.Color(PAL.skyHigh) },
           uMid: { value: new THREE.Color('#e9a77e') },
-          uHorizon: { value: new THREE.Color('#ffd9a6') },
+          uHorizon: { value: new THREE.Color(FOG.color) },
           uSun: { value: SUN_DIR },
         },
         vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} `,
@@ -43,7 +64,7 @@ function SkyDome() {
     [],
   )
   return (
-    <mesh material={mat} scale={380}>
+    <mesh material={mat} scale={700}>
       <sphereGeometry args={[1, 32, 16]} />
     </mesh>
   )
@@ -53,15 +74,15 @@ function Clouds() {
   const group = useRef<THREE.Group>(null)
   const puffs = useMemo(
     () =>
-      Array.from({ length: 16 }, (_, i) => {
-        const a = (i / 16) * Math.PI * 2 + i
-        const d = 190 + (i % 4) * 25
-        return { p: new THREE.Vector3(Math.cos(a) * d, 28 + (i % 3) * 9, Math.sin(a) * d), s: 9 + (i % 5) * 3 }
+      Array.from({ length: 22 }, (_, i) => {
+        const a = (i / 22) * Math.PI * 2 + i
+        const d = 330 + (i % 4) * 30
+        return { p: new THREE.Vector3(Math.cos(a) * d, 40 + (i % 3) * 14, Math.sin(a) * d * 0.7), s: 14 + (i % 5) * 4 }
       }),
     [],
   )
   useFrame((_, dt) => {
-    if (group.current) group.current.rotation.y += dt * 0.004
+    if (group.current) group.current.rotation.y += dt * 0.003
   })
   return (
     <group ref={group}>
@@ -70,7 +91,7 @@ function Clouds() {
           {[[0, 0, 0, 1], [1.1, -0.2, 0.2, 0.75], [-1.0, -0.25, -0.1, 0.7], [0.3, 0.45, 0, 0.6]].map(([x, y, z, s], j) => (
             <mesh key={j} position={[x, y, z]} scale={s}>
               <icosahedronGeometry args={[1, 0]} />
-              <meshStandardMaterial color="#fff1e0" flatShading roughness={1} emissive="#f6b885" emissiveIntensity={0.25} />
+              <meshStandardMaterial color="#fff1e0" flatShading roughness={1} emissive="#f6b885" emissiveIntensity={0.3} fog={false} />
             </mesh>
           ))}
         </group>
@@ -83,10 +104,9 @@ function Lights() {
   const quality = useGame((s) => s.quality)
   const sun = useRef<THREE.DirectionalLight>(null)
   useFrame(() => {
-    // keep the shadow frustum centred on the ship
     const l = sun.current
     if (!l) return
-    l.position.copy(shipState.pos).addScaledVector(SUN_DIR, 80)
+    l.position.copy(shipState.pos).addScaledVector(SUN_DIR, 90)
     l.target.position.copy(shipState.pos)
     l.target.updateMatrixWorld()
   })
@@ -99,11 +119,11 @@ function Lights() {
         intensity={3.2}
         castShadow={quality === 'high'}
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-45}
-        shadow-camera-right={45}
-        shadow-camera-top={45}
-        shadow-camera-bottom={-45}
-        shadow-camera-far={200}
+        shadow-camera-left={-55}
+        shadow-camera-right={55}
+        shadow-camera-top={55}
+        shadow-camera-bottom={-55}
+        shadow-camera-far={220}
         shadow-bias={-0.0005}
         shadow-normalBias={0.04}
       />
@@ -113,44 +133,120 @@ function Lights() {
 }
 
 function SeaNames() {
-  // Lettering painted on the sea, like an old chart.
-  const common = { font: marcellus, fontSize: 3.2, color: PAL.marble, fillOpacity: 0.78, anchorX: 'center' as const, anchorY: 'middle' as const, letterSpacing: 0.06 }
+  const common = { font: marcellus, fontSize: 4, color: PAL.marble, fillOpacity: 0.7, anchorX: 'center' as const, anchorY: 'middle' as const, letterSpacing: 0.08 }
+  const xp = X0 + SPACING * 4
+  const xa = X0 + SPACING * 12
   return (
     <>
-      <Text {...common} position={[-53, 0.6, 8]} rotation={[-Math.PI / 2, 0, Math.PI / 2.35]}>
+      <Text {...common} position={[xp, 0.7, laneZ(xp) + 22]} rotation={[-Math.PI / 2, 0, 0]}>
         Sea of the Value Proposition
       </Text>
-      <Text {...common} position={[53, 0.6, 8]} rotation={[-Math.PI / 2, 0, -Math.PI / 2.35]}>
+      <Text {...common} position={[xa, 0.7, laneZ(xa) + 22]} rotation={[-Math.PI / 2, 0, 0]}>
         Sea of the Value Architecture
+      </Text>
+      <Text {...common} fontSize={2.2} position={[NARROWS_X, 0.7, laneZ(NARROWS_X) + 15]} rotation={[-Math.PI / 2, 0, 0]}>
+        The Narrows
       </Text>
     </>
   )
 }
 
+// The sea lane, painted as a dotted route on the water.
+function Route() {
+  const furthest = useGame((s) => s.furthest)
+  const geo = useMemo(() => {
+    const pts: number[] = []
+    for (let x = STOPS[0].dock.x; x <= STOPS[STOPS.length - 1].dock.x; x += 1.6) pts.push(x, 0.45, laneZ(x))
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+    return g
+  }, [])
+  const reach = STOPS[Math.min(STOPS.length - 1, furthest + 1)].dock.x
+  return (
+    <points geometry={geo}>
+      <pointsMaterial
+        size={0.5}
+        color={PAL.marble}
+        transparent
+        opacity={0.85}
+        onBeforeCompile={(sh) => {
+          sh.uniforms.uReach = { value: reach }
+          sh.vertexShader = sh.vertexShader.replace('void main() {', 'uniform float uReach; varying float vAhead;\nvoid main() {\nvAhead = position.x > uReach ? 1.0 : 0.0;')
+          sh.fragmentShader = sh.fragmentShader
+            .replace('void main() {', 'varying float vAhead;\nvoid main() {')
+            .replace('#include <premultiplied_alpha_fragment>', '#include <premultiplied_alpha_fragment>\ngl_FragColor.a *= (1.0 - vAhead * 0.75);')
+        }}
+        customProgramCacheKey={() => String(Math.round(reach))}
+      />
+    </points>
+  )
+}
+
 function CameraRig() {
   const controls = useRef<CameraControls>(null)
-  useEffect(() => {
-    controls.current?.setLookAt(34, 62, 104, 0, 0, 14, false)
-    if (import.meta.env.DEV) (window as unknown as { __cam: unknown }).__cam = controls.current
-  }, [])
-  const sailing = useGame((s) => s.sailing)
+  const chart = useGame((s) => s.chart)
+  const phase = useGame((s) => s.phase)
+  const { size } = useThree()
+  const target = useMemo(() => new THREE.Vector3(), [])
   const tmp = useMemo(() => new THREE.Vector3(), [])
-  useFrame(() => {
+
+  useEffect(() => {
     const c = controls.current
-    if (!c || !sailing) return
+    if (!c) return
+    if (import.meta.env.DEV) (window as unknown as { __cam: unknown }).__cam = c
+    if (chart) {
+      c.maxDistance = 420
+      c.minAzimuthAngle = -0.8
+      c.setLookAt(0, 230, 150, 0, 0, 0, true)
+    } else if (phase !== 'play') {
+      // establishing shot: from behind Troy, looking east along the voyage
+      c.maxDistance = 420
+      c.minAzimuthAngle = -Infinity
+      c.maxAzimuthAngle = Infinity
+      c.setLookAt(-178, 22, 38, -110, 0, -4, false)
+    } else {
+      c.minAzimuthAngle = -0.8
+      c.maxAzimuthAngle = 0.8
+      c.maxDistance = 80
+      const p = shipState.pos
+      c.setLookAt(p.x + 4, 26, p.z + 40, p.x + 8, 0, p.z - 2, true)
+    }
+  }, [chart, phase])
+
+  useFrame((_, dt) => {
+    const c = controls.current
+    if (!c || chart) return
+    if (phase !== 'play') {
+      c.rotate(dt * 0.01, 0, false)
+      return
+    }
+    const s = useGame.getState()
+    // focus between the ship and the island it is visiting; leave room for the task panel on the right
+    const stop = STOPS[s.stopIndex]
+    target.copy(shipState.pos)
+    if (!s.sailing && stop.island) target.lerp(tmp.set(stop.island.x, 0, stop.island.z), 0.45)
+    if (s.sailing) target.x += shipState.dir * 6
+    const panelOpen = !s.sailing && size.width > 760
+    const dist = c.distance
+    const visibleW = 2 * dist * Math.tan((38 * Math.PI) / 360) * (size.width / size.height)
+    if (panelOpen) target.x += visibleW * 0.17
     c.getTarget(tmp)
-    tmp.lerp(shipState.pos, 0.06)
+    tmp.lerp(target, s.sailing ? 0.08 : 0.05)
     c.moveTo(tmp.x, 0, tmp.z, false)
   })
+
   return (
     <CameraControls
       ref={controls}
       makeDefault
-      minDistance={12}
-      maxDistance={120}
-      minPolarAngle={0.35}
-      maxPolarAngle={1.25}
-      smoothTime={0.6}
+      minDistance={16}
+      maxDistance={80}
+      minPolarAngle={0.45}
+      maxPolarAngle={1.2}
+      minAzimuthAngle={-0.8}
+      maxAzimuthAngle={0.8}
+      smoothTime={0.5}
+      dollySpeed={0.5}
     />
   )
 }
@@ -160,12 +256,12 @@ function Effects() {
   if (quality === 'low') return null
   return (
     <EffectComposer multisampling={0}>
-      <N8AO aoRadius={2.2} intensity={2.2} distanceFalloff={1.2} halfRes />
+      <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={1.2} halfRes />
       <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={0.7} mipmapBlur />
       <HueSaturation saturation={0.12} />
       <BrightnessContrast contrast={0.06} />
       <ToneMapping mode={ToneMappingMode.AGX} />
-      <Vignette offset={0.28} darkness={0.55} />
+      <Vignette offset={0.28} darkness={0.5} />
       <SMAA />
     </EffectComposer>
   )
@@ -173,28 +269,36 @@ function Effects() {
 
 export function World() {
   const quality = useGame((s) => s.quality)
-  const diceOpen = useGame((s) => s.diceOpen)
-  const start = islandByKey('ithaca')
   return (
     <Canvas
-      frameloop={diceOpen ? 'never' : 'always'}
       shadows={quality === 'high'}
       dpr={quality === 'high' ? [1, 2] : 1}
       gl={{ antialias: quality === 'low', toneMapping: quality === 'low' ? THREE.AgXToneMapping : THREE.NoToneMapping }}
-      camera={{ position: [start.x + 26, 30, start.z + 46], fov: 38, near: 0.5, far: 900 }}
+      camera={{ position: [-178, 22, 38], fov: 38, near: 0.5, far: 1600 }}
     >
+      <color attach="background" args={[FOG.color]} />
       <fog attach="fog" args={[FOG.color, FOG.near, FOG.far]} />
       <Suspense fallback={null}>
         <SkyDome />
         <Clouds />
         <Lights />
-        <Ocean sunDir={SUN_DIR} fogColor={FOG.color} fogNear={FOG.near} fogFar={FOG.far} />
-        {ISLANDS.map((spot) =>
-          spot.key === 'olympus' ? <Olympus key={spot.key} spot={spot} /> : <Island key={spot.key} spot={spot} />,
-        )}
+        <Ocean sunDir={SUN_DIR} fogColor={FOG.color} fog={fogState} />
+        <Troy />
+        {STOPS.filter((s) => s.kind === 'island').map((s) => (
+          <DirectionIsland key={s.key} stop={s} />
+        ))}
+        <Narrows />
+        <Aeolus />
+        <Lemnos />
+        <Olympus />
+        <Ithaca />
+        <Islets />
+        <Route />
         <Ship />
+        <Dolphins />
         <SeaNames />
         <Effects />
+        <FogRig />
       </Suspense>
       <CameraRig />
     </Canvas>
