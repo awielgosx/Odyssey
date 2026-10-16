@@ -176,7 +176,8 @@ select:focus-visible {
 .title-card .fine {
   font-size: 14px;
   color: var(--ink-soft);
-  margin: 18px 0 0;
+  margin: 18px auto 0;
+  max-width: 52ch;
 }
 
 .frieze {
@@ -449,6 +450,25 @@ select:focus-visible {
   height: 58px;
   flex: none;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+.athena {
+  flex: none;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.4));
+  animation: breathe 4s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.athena.stern {
+  animation: nod 0.5s ease-in-out 2;
+}
+@keyframes breathe {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes nod {
+  50% {
+    transform: rotate(-4deg);
+  }
 }
 
 .nav {
@@ -1076,3 +1096,29 @@ textarea {
   padding: 24px;
 }
 
+.missing {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.btn.primary.waiting {
+  opacity: 0.6;
+}
+.steps {
+  margin: 4px 0 8px;
+  padding-left: 22px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.steps li {
+  margin-bottom: 8px;
+}
+.intro-coach {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 2px 0 8px;
+}
+.intro-coach p {
+  margin: 0;
+  font-style: italic;
+}

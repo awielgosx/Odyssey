@@ -353,17 +353,29 @@ Return JSON with: scores (one entry per criterion key, with a one-sentence note)
 
 function hintPrompt(kind: TaskKind, directionId: number | undefined, context: string, answer: string, previous: string[]) {
   const dir = kind === 'landing' && directionId ? directionById(directionId) : null
+  const rubric = RUBRICS[kind]
   return `${METHOD_SUMMARY}
 
-The student is stuck on: ${dir ? `direction ${dir.id}, "${dir.name}". Guiding questions: ${dir.questions.join(' ')}` : kind}.
-Reference business: ${context.slice(0, 800)}
-Their draft so far:
-<student_answer>
-${answer.slice(0, 1500) || '(empty)'}
-</student_answer>
-Questions already asked (do not repeat): ${previous.join(' | ') || 'none'}
+The student asked for a nudge on: ${dir ? `direction ${dir.id}, "${dir.name}" (${dir.definition})` : kind}.
+REFERENCE BUSINESS (Troy):
+${context.slice(0, 1000)}
 
-Ask ONE Socratic question (max 25 words) that helps them think further about their own business. Do not suggest an idea. Return JSON {"question": "..."}.`
+RUBRIC the draft will be graded on:
+${rubric.map((c) => `- ${c.key}: ${c.label}. ${c.anchors}`).join('\n')}
+
+THEIR CURRENT DRAFT:
+<student_answer>
+${answer.slice(0, 2500) || '(empty)'}
+</student_answer>
+
+Questions already asked (never repeat or rephrase these): ${previous.join(' | ') || 'none'}
+
+How to answer:
+1. Read the draft against the rubric and find its single weakest or most generic part.
+2. Ask ONE Socratic question about exactly that part, quoting 2 to 6 of the student's own words so they see you read it.
+3. Never ask for information the draft already gives. Never suggest an idea or an answer.
+4. If the draft is empty, ask a question that helps them start from the reference business.
+Max 30 words. Return JSON {"question": "..."}.`
 }
 
 const GRADE_SCHEMA = {
@@ -385,7 +397,16 @@ const GRADE_SCHEMA = {
 
 const HINT_SCHEMA = { type: 'OBJECT', properties: { question: { type: 'STRING' } }, required: ['question'] }
 
-async function callGemini(prompt: string, schema: object) {
+async function callGemini(prompt: string, schema: object, maxTokens = 2048) {
+  try {
+    return await callGeminiOnce(prompt, schema, maxTokens, true)
+  } catch (e) {
+    if ((e as { status?: number }).status === 400) return callGeminiOnce(prompt, schema, maxTokens, false)
+    throw e
+  }
+}
+
+async function callGeminiOnce(prompt: string, schema: object, maxTokens: number, light: boolean) {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('no key'), { status: 503 })
   const ctl = new AbortController()
@@ -398,10 +419,16 @@ async function callGemini(prompt: string, schema: object) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: RULES }] },
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: schema },
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: maxTokens,
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          ...(light ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+        },
       }),
     })
-    if (!r.ok) throw Object.assign(new Error(`gemini ${r.status}`), { status: r.status === 429 ? 429 : 502 })
+    if (!r.ok) throw Object.assign(new Error(`gemini ${r.status}`), { status: r.status === 429 ? 429 : r.status === 400 ? 400 : 502 })
     const data = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
     const json = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)
@@ -427,7 +454,7 @@ export default async function handler(req: Req, res: Res) {
 
   try {
     if (b.mode === 'hint') {
-      const out = await callGemini(hintPrompt(kind, directionId, context, answer, previous), HINT_SCHEMA)
+      const out = await callGemini(hintPrompt(kind, directionId, context, answer, previous), HINT_SCHEMA, 1024)
       return res.status(200).json({ question: String(out.question ?? '') })
     }
     const out = await callGemini(gradePrompt(kind, directionId, context, answer), GRADE_SCHEMA)

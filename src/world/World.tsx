@@ -118,7 +118,7 @@ function Lights() {
         color={PAL.sun}
         intensity={3.2}
         castShadow={quality === 'high'}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-55}
         shadow-camera-right={55}
         shadow-camera-top={55}
@@ -251,6 +251,27 @@ function CameraRig() {
   )
 }
 
+// Render at 30 fps when nothing much moves and 60 fps while sailing: keeps laptops cool.
+function Ticker() {
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    let raf = 0
+    let last = 0
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop)
+      const s = useGame.getState()
+      const fps = s.sailing || s.chart ? 60 : s.phase === 'play' ? 30 : 24
+      if (t - last >= 1000 / fps - 2) {
+        last = t
+        invalidate()
+      }
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [invalidate])
+  return null
+}
+
 function Effects() {
   const quality = useGame((s) => s.quality)
   if (quality === 'low') return null
@@ -272,7 +293,8 @@ export function World() {
   return (
     <Canvas
       shadows={quality === 'high'}
-      dpr={quality === 'high' ? [1, 2] : 1}
+      dpr={quality === 'high' ? [1, 1.5] : 1}
+      frameloop="demand"
       gl={{ antialias: quality === 'low', toneMapping: quality === 'low' ? THREE.AgXToneMapping : THREE.NoToneMapping }}
       camera={{ position: [-178, 22, 38], fov: 38, near: 0.5, far: 1600 }}
     >
@@ -301,6 +323,7 @@ export function World() {
         <FogRig />
       </Suspense>
       <CameraRig />
+      <Ticker />
     </Canvas>
   )
 }

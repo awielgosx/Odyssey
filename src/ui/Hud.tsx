@@ -4,7 +4,7 @@ import { directionById } from '../content/directions'
 import { voyageById } from '../content/voyages'
 import { landedIn, laurels, stopComplete, useGame } from '../store'
 import { STOPS } from '../world/layout'
-import { Owl } from './common'
+import { Athena, type Mood } from './Athena'
 
 // The voyage ribbon: progress, legend and navigation in one strip.
 export function Ribbon() {
@@ -157,9 +157,27 @@ export function Coach() {
         line = 'Welcome home, captain. Download your log.'
         break
     }
+  // Athena reacts to the latest review at this stop: stern when it is weak, pleased when it is strong
+  const g = (a: { grades: { total: number; max: number }[] } | null | undefined) => (a?.grades.length ? a.grades[a.grades.length - 1] : null)
+  const last =
+    stop.kind === 'troy' ? g(s.troy) : stop.kind === 'island' ? g(s.landings[stop.directionId!]) : stop.kind === 'aeolus' ? g(s.aeolus) : stop.kind === 'lemnos' ? g(s.lemnos) : stop.kind === 'olympus' ? g(s.olympus) : null
+  const ratio = last ? last.total / last.max : null
+  const wrongQuiz = stop.kind === 'island' && !s.checks[stop.directionId!]?.done && (s.checks[stop.directionId!]?.wrong.length ?? 0) > 0
+  let mood: Mood = 'neutral'
+  if (!s.sailing && ratio !== null && ratio < 0.5) {
+    mood = 'stern'
+    const revised = (last && (stop.kind === 'troy' ? s.troy : stop.kind === 'island' ? s.landings[stop.directionId!] : stop.kind === 'aeolus' ? s.aeolus : stop.kind === 'lemnos' ? s.lemnos : s.olympus)?.grades.length === 2) ?? false
+    line = revised
+      ? 'Still thin. Remember why: vague ideas die in front of real customers. Take my question with you and sail on.'
+      : 'This would not survive the council. Answer my question in the review, then revise. Be concrete: who, what, how much.'
+  } else if (!s.sailing && ratio !== null && ratio >= 0.75) mood = 'pleased'
+  else if (wrongQuiz) {
+    mood = 'stern'
+    line = 'Read the case again, slowly. The answer is in it.'
+  }
   return (
     <div className="coach" aria-live="polite">
-      <Owl />
+      <Athena mood={mood} size={92} />
       <div className="bubble parchment">
         <b>Athena</b>
         {line}
@@ -183,8 +201,27 @@ export function Nav() {
         </button>
       )}
       {nextStop && (
-        <button className="btn primary" disabled={!canNext} title={canNext ? '' : 'Finish this stop first'} onClick={() => (audio.click(), s.sailTo(next))}>
-          Set sail to {label} {'→'}
+        <button
+          className={`btn primary ${canNext ? '' : 'waiting'}`}
+          aria-disabled={!canNext}
+          onClick={() => {
+            if (!canNext) {
+              const stop = STOPS[s.stopIndex]
+              s.say(
+                stop.kind === 'troy'
+                  ? 'First submit Troy to Athena: the button is at the bottom of the panel on the right.'
+                  : stop.kind === 'island'
+                    ? 'Answer the quick check in the panel first. Then you can sail on.'
+                    : 'Submit your answer to Athena first (bottom of the panel on the right).',
+              )
+              audio.wrong()
+              return
+            }
+            audio.click()
+            s.sailTo(next)
+          }}
+        >
+          Set sail to {label} {'\u2192'}
         </button>
       )}
     </div>

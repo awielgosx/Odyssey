@@ -141,7 +141,6 @@ function Lighthouse() {
       <mesh ref={flame} position={[0, 2.85, 0]} material={M.flame}>
         <octahedronGeometry args={[0.2, 0]} />
       </mesh>
-      <pointLight position={[0, 2.9, 0]} color="#ffb347" intensity={6} distance={9} />
     </group>
   )
 }
@@ -236,7 +235,6 @@ function Forge() {
       </mesh>
       <Box s={[0.3, 1.0, 0.3]} p={[0.5, 1.4, -0.25]} m={M.rock} />
       <Box s={[0.7, 0.45, 0.05]} p={[0, 0.3, 0.61]} m={M.ember} />
-      <pointLight ref={glow} position={[0, 0.4, 1.0]} color="#ff7a2a" intensity={5} distance={6} />
       <Box s={[0.4, 0.25, 0.25]} p={[-0.9, 0.12, 0.8]} m={M.glaze} />
     </group>
   )

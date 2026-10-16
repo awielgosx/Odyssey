@@ -119,10 +119,12 @@ void main() {
   float spec = pow(max(dot(sn, h), 0.0), 160.0);
   col += uSunColor * spec * 0.7;
 
-  float ring = smoothstep(1.2, 0.0, shore) + (sin(shore * 3.2 - uTime * 2.0) * 0.5 + 0.5) * smoothstep(3.2, 0.5, shore) * 0.45;
+  // smoothstep needs edge0 < edge1 (reversed edges are undefined and give NaN on Apple GPUs)
+  float ring = (1.0 - smoothstep(0.0, 1.2, shore)) + (sin(shore * 3.2 - uTime * 2.0) * 0.5 + 0.5) * (1.0 - smoothstep(0.5, 3.2, shore)) * 0.45;
   col = mix(col, uFoam, clamp(ring, 0.0, 1.0) * 0.85);
 
-  float fog = smoothstep(uFogNear, uFogFar, dist);
+  float fog = clamp((dist - uFogNear) / max(uFogFar - uFogNear, 1.0), 0.0, 1.0);
+  fog = fog * fog * (3.0 - 2.0 * fog);
   col = mix(col, uFogColor, fog);
   col = clamp(col, 0.0, 4.0);
   gl_FragColor = vec4(col, 1.0);
@@ -160,7 +162,7 @@ export function Ocean({ sunDir, fogColor, fog }: { sunDir: THREE.Vector3; fogCol
   })
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]}>
-      <planeGeometry args={[620, 360, 236, 136]} />
+      <planeGeometry args={[620, 360, 210, 122]} />
       <shaderMaterial ref={mat} vertexShader={vert} fragmentShader={frag} uniforms={uniforms} />
     </mesh>
   )

@@ -171,10 +171,15 @@ export function estimate(req: GradeRequest): Grade {
   }
 }
 
+// Offline nudge: find the weakest criterion in the current draft and ask about it.
 function fallbackHint(req: GradeRequest, previous: string[]) {
-  const pool =
-    req.kind === 'landing' && req.directionId
-      ? [...directionById(req.directionId).questions, ...RUBRICS.landing.map((c) => c.question)]
-      : RUBRICS[req.kind].map((c) => c.question)
-  return pool.find((q) => !previous.includes(q)) ?? pool[0]
+  const est = estimate(req)
+  const rubric = RUBRICS[req.kind]
+  const order = est.scores.map((sc, i) => ({ i, r: sc.score / sc.max })).sort((a, b) => a.r - b.r)
+  for (const { i } of order) {
+    const q = rubric[i].question
+    if (!previous.includes(q)) return q
+  }
+  const extra = req.kind === 'landing' && req.directionId ? directionById(req.directionId).questions : []
+  return extra.find((q) => !previous.includes(q)) ?? 'Which part of your answer would a sceptical investor attack first, and why?'
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { audio } from '../audio/engine'
 import { requestGrade, requestHint, type GradeRequest } from '../coach/grade'
 import { voyageById } from '../content/voyages'
@@ -62,4 +62,19 @@ export function useGradedTask(key: string, grades: Grade[]) {
     attempt: grades.length,
     last: grades[grades.length - 1] ?? null,
   }
+}
+
+// Unsubmitted answers live in the store (and so in localStorage) so nothing is lost when
+// the panel closes for the chart, the menu, sailing or a reload.
+export function useDraft<T>(key: string, init: () => T): [T, (next: T | ((prev: T) => T)) => void] {
+  const [value, setValue] = useState<T>(() => (useGame.getState().drafts[key] as T | undefined) ?? init())
+  const current = useRef(value)
+  current.current = value
+  const update = (next: T | ((prev: T) => T)) => {
+    const v = typeof next === 'function' ? (next as (p: T) => T)(current.current) : next
+    current.current = v
+    setValue(v)
+    useGame.getState().setDraft(key, v)
+  }
+  return [value, update]
 }

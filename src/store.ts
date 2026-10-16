@@ -104,6 +104,7 @@ interface GameState {
   olympus: Attempts<OlympusAnswer> | null
   hints: Record<string, number>
   eggs: string[]
+  drafts: Record<string, unknown>
   toast: { text: string; id: number } | null
   // actions
   set: (p: Partial<GameState>) => void
@@ -119,8 +120,12 @@ interface GameState {
   useHint: (key: string) => void
   findEgg: (key: string, text: string) => void
   say: (text: string) => void
+  setDraft: (key: string, value: unknown) => void
   reset: () => void
 }
+
+// Odysseus' crew, for captains who leave their name blank
+const CREW = ['Eurylochus', 'Polites', 'Elpenor', 'Perimedes', 'Antiphus', 'Eurybates', 'Halitherses']
 
 const safeStorage = createJSONStorage(() => {
   try {
@@ -154,6 +159,7 @@ const fresh = {
   olympus: null,
   hints: {},
   eggs: [] as string[],
+  drafts: {} as Record<string, unknown>,
   toast: null,
 }
 
@@ -175,7 +181,7 @@ export const useGame = create<GameState>()(
           ...fresh,
           phase: 'play',
           voyageId,
-          captain: captain.trim() || 'Nobody',
+          captain: captain.trim() || CREW[Math.floor(Math.random() * CREW.length)],
           startedAt: Date.now(),
           troy: {
             answer: {
@@ -229,6 +235,7 @@ export const useGame = create<GameState>()(
         set({ eggs, toast: { text, id: Date.now() } })
       },
       say: (text) => set({ toast: { text, id: Date.now() } }),
+      setDraft: (key, value) => set({ drafts: { ...get().drafts, [key]: value } }),
       reset: () => set({ ...fresh }),
     }),
     {

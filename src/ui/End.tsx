@@ -18,7 +18,7 @@ export function buildLog(): string {
   const L: string[] = []
   L.push(`# Captain's Log: ${lem?.name || 'Untitled business model'}`)
   L.push('')
-  L.push(`Captain: ${s.captain} | Voyage: ${v.id === 'own' ? 'own project' : `practice (${v.title})`} | Rank: ${g.rank}${g.polytropos ? ' (Polytropos)' : ''} | Grade: ${g.outOf20}/20 (${g.percent}%) | Time: ${minutes} min | ${new Date().toLocaleDateString()}`)
+  L.push(`Captain: ${s.captain} | Voyage: ${v.id === 'own' ? 'own project' : `practice (${v.title})`} | Rank: ${g.rank}${g.polytropos ? ' (Polytropos)' : ''} | Score: ${g.outOf20}/20 (${g.percent}%) | Time: ${minutes} min | ${new Date().toLocaleDateString()}`)
   L.push('')
   L.push('## 1. Context: Troy, the business today')
   if (t) {
@@ -117,9 +117,10 @@ export function IthacaEnd() {
         <p className="lede">You are home. Argos lifts his head. Penelope has woven your voyage into a Captain's Log.</p>
       </div>
       <div className="panel-body">
-        {!complete && <div className="hint">Finish the council on Olympus first to see your final grade.</div>}
+        {!complete && <div className="hint">Finish the council on Olympus first to see your final score.</div>}
         <div className="scorecard">
           <div className="big">{g.outOf20}/20</div>
+          <div className="count">Voyage score</div>
           <div className="rank">
             {g.polytropos ? 'Polytropos, the man of many turns' : g.rank} ({g.percent}%)
           </div>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { audio } from '../audio/engine'
 import { VOYAGES } from '../content/voyages'
 import { useGame } from '../store'
-import { Owl } from './common'
+import { Athena } from './Athena'
 
 export function Title() {
   const s = useGame()
@@ -41,7 +41,7 @@ export function Title() {
           )}
         </div>
         <p className="fine">
-          A study tool for the Odyssey 3.14 approach to business model innovation (Lehmann-Ortega, Musikas and Schoettl, HEC Paris). Sound on, and best on a laptop.
+          A study tool for the Odyssey 3.14 approach to business model innovation (Lehmann-Ortega, Musikas and Schoettl, HEC Paris). Best on a desktop or laptop, with sound on.
         </p>
         <div className="meander-band" style={{ marginTop: 18 }} />
       </div>
@@ -53,16 +53,18 @@ const PillarBadge = ({ k }: { k: 'p' | 'a' | 'c' }) => <span className={`badge $
 
 const STEPS = [
   {
-    title: 'Every industry has a Troy',
+    title: 'Reinvent a business model in twenty minutes',
     body: (
       <>
-        <p>Troy is the business model everyone in an industry copies and fights over: same customers, same offer, same way of making money.</p>
-        <p>You won’t win by fighting harder. Like Odysseus, you will sail away and come home changed. Odyssey 3.14, the HEC method for business model innovation, is your chart.</p>
+        <p>
+          In 2000, Michelin stopped only selling truck tyres and started selling <b>kilometres</b>: fleets paid per kilometre driven, Michelin kept the tyres and looked after them. Same product, new business model. That is the kind of move you will learn to make.
+        </p>
+        <p>You start at <b>Troy</b>: a traditional business model that everyone in an industry copies. You end at <b>Ithaca</b> with a reinvented one that you designed and defended.</p>
       </>
     ),
   },
   {
-    title: 'A business model has three pillars',
+    title: 'Every business model has three pillars',
     body: (
       <>
         <div className="pillars">
@@ -70,53 +72,42 @@ const STEPS = [
             <b>
               <PillarBadge k="p" /> Value proposition
             </b>
-            <span>What you offer, to whom (user, decision-maker, payer) and at what price.</span>
+            <span>What you offer, to whom, at what price. Michelin: kilometres instead of tyres, paid per km.</span>
           </div>
           <div className="pillar">
             <b>
               <PillarBadge k="a" /> Value architecture
             </b>
-            <span>How you build and deliver it: value chain, partners, resources and competencies.</span>
+            <span>How you build and deliver it. Michelin: tyre maintenance across Europe, through partner workshops.</span>
           </div>
           <div className="pillar">
             <b>
               <PillarBadge k="c" /> Contributions
             </b>
-            <span>What it gives back: financial, environmental and societal, each rated +, 0 or {'−'}.</span>
+            <span>What it gives back: financial, environmental, societal. Michelin: longer-lasting tyres, but more capital tied up.</span>
           </div>
         </div>
-        <p>Strong business models combine a proposition and an architecture that fit each other. That fit is what the gods will test at the end.</p>
+        <p>A strong model is one where the proposition and the architecture fit together. Near the end of the voyage, the gods of Olympus will test exactly that fit.</p>
       </>
     ),
   },
   {
-    title: 'Fourteen islands, fourteen directions',
+    title: 'How the voyage works',
     body: (
-      <>
-        <p>
-          Each numbered island is one of the 14 directions for finding new business models. Islands 1 to 7 lie in the <b>Sea of the Value Proposition</b>; islands 8 to 14 in the <b>Sea of the Value Architecture</b>. The badge on each flag says which pillar it changes.
-        </p>
-        <p>At every island you read a short case from the course and answer one quick question. Where an idea sparks, you <b>land</b> and apply the direction to your own business. Land at least once in each sea.</p>
-      </>
-    ),
-  },
-  {
-    title: 'Then the real tests',
-    body: (
-      <>
-        <p>
-          <b>Aeolus</b> checks that one idea from each sea holds together. At <b>Lemnos</b>, Hephaestus’ forge, you shape your new business model and its value curve. On <b>Olympus</b> the gods question it and you design the cheapest test. Then you sail home to <b>Ithaca</b> with your Captain’s Log.
-        </p>
-      </>
-    ),
-  },
-  {
-    title: 'Athena will ask, never answer',
-    body: (
-      <>
-        <p>Athena, in the shape of an owl, reviews every answer you write with the course rubric and asks one question about your weakest point. You can revise each answer once. She never writes your ideas for you.</p>
-        <p>Laurels {'❦'} show your progress. Your final grade weighs knowledge, framing, application and synthesis. Use the ribbon at the top to see where you are and to sail back to any island you passed.</p>
-      </>
+      <ol className="steps">
+        <li>
+          <b>Troy.</b> Describe the traditional business model you want to reinvent.
+        </li>
+        <li>
+          <b>Fourteen numbered islands</b>, the 14 directions of Odyssey 3.14: islands 1 to 7 change the value proposition (<PillarBadge k="p" />), 8 to 14 the value architecture (<PillarBadge k="a" />). At each one, read a short case and answer one question. Where an idea sparks, <b>land</b> and apply the direction to your business. Land at least once in each sea.
+        </li>
+        <li>
+          <b>Aeolus</b> checks that your ideas hold together, <b>Lemnos</b> forges them into one model, and the <b>gods of Olympus</b> question it.
+        </li>
+        <li>
+          <b>Athena</b>, your coach, reviews every answer and asks hard questions. She never writes your ideas. Your score and a Captain&rsquo;s Log wait at Ithaca.
+        </li>
+      </ol>
     ),
   },
 ]
@@ -134,9 +125,10 @@ export function Intro() {
           {step + 1} of {STEPS.length}
         </p>
         <h2>{cur.title}</h2>
-        {step === 4 && (
-          <div className="art">
-            <Owl className="owl big" />
+        {step === 2 && (
+          <div className="intro-coach">
+            <Athena mood="neutral" size={84} />
+            <p>I am Athena, disguised as Mentor. I will ask, never answer.</p>
           </div>
         )}
         {cur.body}
@@ -174,27 +166,37 @@ export function Intro() {
 
 export function Setup() {
   const s = useGame()
-  const [pick, setPick] = useState(s.voyageId)
+  const [demo, setDemo] = useState(false)
+  const [pick, setPick] = useState('phone')
   const [name, setName] = useState('')
+  const practice = VOYAGES.filter((v) => v.id !== 'own')
   return (
     <div className="overlay">
-      <div className="setup parchment" role="dialog" aria-label="Choose your voyage">
+      <div className="setup parchment" role="dialog" aria-label="Start your voyage">
         <div className="meander-band" />
-        <h2 style={{ marginTop: 14 }}>Choose your ship</h2>
-        <p>Practice on a real company that reinvented its industry (you start from the conventional business and discover the real story at the end), or sail with your own business or project.</p>
-        <div className="ships">
-          {VOYAGES.map((v) => (
-            <button key={v.id} className="ship-card" aria-pressed={pick === v.id} onClick={() => (setPick(v.id), audio.click())}>
-              <b>{v.title}</b>
-              <span>{v.blurb}</span>
-            </button>
-          ))}
-        </div>
+        <h2 style={{ marginTop: 14 }}>{demo ? 'Demo voyage' : 'Your voyage'}</h2>
+        {!demo ? (
+          <p>
+            Bring a real business, a startup idea or a company you know well. You will describe its traditional model at Troy and reinvent it on the way to Ithaca.
+          </p>
+        ) : (
+          <>
+            <p>For a guided walkthrough in class. Each demo starts from the traditional business, with Troy already described; at Ithaca, Tiresias reveals what the real company did.</p>
+            <div className="ships">
+              {practice.map((v) => (
+                <button key={v.id} className="ship-card" aria-pressed={pick === v.id} onClick={() => (setPick(v.id), audio.click())}>
+                  <b>{v.title}</b>
+                  <span>{v.blurb}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <label className="field" style={{ maxWidth: 360 }}>
           <span>
-            Captain's name <small>optional</small>
+            Captain&rsquo;s name <small>optional</small>
           </span>
-          <input type="text" value={name} placeholder="Leave blank to sail as Nobody" onChange={(e) => setName(e.target.value)} />
+          <input type="text" value={name} placeholder="Leave blank to sail as one of Odysseus’ crew" onChange={(e) => setName(e.target.value)} />
         </label>
         <div className="submit-row">
           <button
@@ -202,10 +204,13 @@ export function Setup() {
             onClick={() => {
               audio.start()
               audio.success()
-              s.startVoyage(pick, name)
+              s.startVoyage(demo ? pick : 'own', name)
             }}
           >
-            Set sail from Troy
+            {demo ? 'Start the demo at Troy' : 'Set sail from Troy'}
+          </button>
+          <button className="btn ghost" onClick={() => setDemo(!demo)}>
+            {demo ? 'Back to my own business' : 'Demo mode for teachers'}
           </button>
         </div>
       </div>

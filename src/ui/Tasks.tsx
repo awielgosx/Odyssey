@@ -6,7 +6,7 @@ import { voyageById } from '../content/voyages'
 import { landedIn, useGame, type AeolusAnswer, type Landing, type LemnosAnswer, type OlympusAnswer, type Sign, type TroyAnswer } from '../store'
 import { STOPS } from '../world/layout'
 import { Field, GradeView, SignToggle, wordCount } from './common'
-import { useGradedTask } from './useTask'
+import { useDraft, useGradedTask } from './useTask'
 import { AttributeEditor, CurveChart } from './ValueCurve'
 
 // ---------------------------------------------------------------- shared bits
@@ -26,35 +26,56 @@ function HintBox({ hints }: { hints: string[] }) {
 
 function SubmitRow({
   busy,
-  disabled,
+  missing,
   onSubmit,
   onHint,
   hintsLeft,
   hintBusy,
   label = 'Submit to Athena',
-  why,
 }: {
   busy: boolean
-  disabled: boolean
+  missing: string[]
   onSubmit: () => void
   onHint?: () => void
   hintsLeft: number
   hintBusy: boolean
   label?: string
-  why?: string
 }) {
+  const [tried, setTried] = useState(false)
   return (
-    <div className="submit-row">
-      <button className="btn primary" disabled={busy || disabled} onClick={onSubmit}>
-        {busy ? 'Athena is reading…' : label}
-      </button>
-      {onHint && (
-        <button className="btn small" disabled={hintBusy || hintsLeft <= 0} onClick={onHint}>
-          {hintBusy ? 'Thinking…' : `Ask Athena a question (${hintsLeft} left)`}
+    <>
+      <div className="submit-row">
+        <button
+          className="btn primary"
+          disabled={busy}
+          onClick={() => {
+            if (missing.length) {
+              setTried(true)
+              audio.wrong()
+              return
+            }
+            onSubmit()
+          }}
+        >
+          {busy ? 'Athena is reading\u2026' : label}
         </button>
+        {onHint && (
+          <button className="btn small" disabled={hintBusy || hintsLeft <= 0} onClick={onHint} title="Athena reads your draft and asks about its weakest point">
+            {hintBusy ? 'Athena is reading your draft\u2026' : hintsLeft > 0 ? `Ask Athena for a nudge (${hintsLeft} left)` : 'No nudges left'}
+          </button>
+        )}
+      </div>
+      {tried && missing.length > 0 && (
+        <div className="hint" role="alert">
+          <b>Before Athena can review it:</b>
+          <ul className="missing">
+            {missing.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
       )}
-      {disabled && why && <small className="count">{why}</small>}
-    </div>
+    </>
   )
 }
 
@@ -69,22 +90,28 @@ export function TroyTask() {
   const voyage = voyageById(useGame((s) => s.voyageId))
   const troy = useGame((s) => s.troy)
   const saveTroy = useGame((s) => s.saveTroy)
-  const [a, setA] = useState<TroyAnswer>(() => troy!.answer)
+  const [a, setA] = useDraft<TroyAnswer>('troy', () => troy!.answer)
   const task = useGradedTask('troy', troy?.grades ?? [])
   const own = voyage.id === 'own'
   const up = (p: Partial<TroyAnswer>) => setA((x) => ({ ...x, ...p }))
-  const ready = wordCount(a.offer) >= 3 && wordCount(a.frustration) >= 4 && wordCount(a.orthodoxy) >= 4 && a.attributes.every((x) => x.name.trim())
+  const missing = [
+    wordCount(a.offer) < 3 && 'Describe what is offered (at least 3 words).',
+    a.attributes.some((x) => !x.name.trim()) && `Name every value attribute (${a.attributes.map((x, i) => (x.name.trim() ? null : i + 1)).filter(Boolean).join(', ')} still empty; the grey text is only an example).`,
+    wordCount(a.frustration) < 4 && 'Write the customer frustration (at least 4 words).',
+    wordCount(a.orthodoxy) < 4 && 'Write the industry orthodoxy (at least 4 words).',
+  ].filter(Boolean) as string[]
   const req = { kind: 'troy' as const, answer: flatten({ ...a, attributes: a.attributes.map((x) => `${x.name} ${x.level}/5`).join(', ') }), extra: a }
 
   return (
     <>
       <div className="panel-head">
         <p className="kicker">
-          <span className="badge ink">Start</span> Your business today
+          <span className="badge ink">Step 1</span> The benchmark, not your new idea
         </p>
-        <h2>Troy</h2>
+        <h2>Troy: the traditional model</h2>
         <p className="lede">
-          Every industry has a Troy: the business model everyone copies and fights over. Before you can reinvent it, describe it honestly. {own ? '' : 'Your practice ship comes with the basics filled in; check them and add the two insights.'}
+          Describe the business model <b>as it works today</b>, the way most of the industry does it. No new ideas yet: this is the benchmark you will reinvent on the islands and compare against at the forge.{' '}
+          {own ? '' : 'This demo ship comes with the basics filled in; check them and add the two insights.'}
         </p>
       </div>
       <div className="panel-body">
@@ -132,8 +159,7 @@ export function TroyTask() {
         {task.editing && (
           <SubmitRow
             busy={task.busy}
-            disabled={!ready}
-            why="Fill the offer, all five attributes, the frustration and the orthodoxy."
+            missing={missing}
             onSubmit={() => task.submit(req, (g) => saveTroy(a, g))}
             onHint={() => task.ask(req)}
             hintsLeft={task.hintsLeft}
@@ -222,19 +248,19 @@ function emptyLanding(): Landing {
 function LandingForm({ d }: { d: Direction }) {
   const record = useGame((s) => s.landings[d.id])
   const saveLanding = useGame((s) => s.saveLanding)
-  const [a, setA] = useState<Landing>(() => record?.answer ?? emptyLanding())
+  const [a, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding())
   const task = useGradedTask(`land${d.id}`, record?.grades ?? [])
   const up = (p: Partial<Landing>) => setA((x) => ({ ...x, ...p }))
   const setC = (k: keyof Landing['contrib'], p: Partial<{ sign: Sign | ''; reason: string }>) =>
     setA((x) => ({ ...x, contrib: { ...x.contrib, [k]: { ...x.contrib[k], ...p } } }))
-  const ready =
-    wordCount(a.idea) >= 4 &&
-    wordCount(a.idea) <= 25 &&
-    a.who &&
-    wordCount(a.whoText) >= 4 &&
-    a.pillars.length > 0 &&
-    wordCount(a.knock) >= 3 &&
-    Object.values(a.contrib).every((c) => c.sign && wordCount(c.reason) >= 2)
+  const missing = [
+    (wordCount(a.idea) < 4 || wordCount(a.idea) > 25) && '1. Write your idea in 4 to 25 words.',
+    !a.who && '2. Pick who benefits (user, decision-maker, payer, partner or society).',
+    wordCount(a.whoText) < 4 && '2. Say how they benefit (at least 4 words).',
+    a.pillars.length === 0 && '3. Tick at least one pillar element that changes.',
+    wordCount(a.knock) < 3 && '3. Describe the knock-on effect (at least 3 words).',
+    !Object.values(a.contrib).every((c) => c.sign && wordCount(c.reason) >= 2) && '4. Give each contribution a sign and a short reason (2 words or more).',
+  ].filter(Boolean) as string[]
   const req = { kind: 'landing' as const, directionId: d.id, answer: flatten({ ...a, contrib: Object.entries(a.contrib).map(([k, v]) => `${k} ${v.sign} (${v.reason})`).join('; ') }), extra: a }
   const toggle = (b: string) => up({ pillars: a.pillars.includes(b) ? a.pillars.filter((x) => x !== b) : [...a.pillars, b] })
 
@@ -294,8 +320,7 @@ function LandingForm({ d }: { d: Direction }) {
       {task.editing && (
         <SubmitRow
           busy={task.busy}
-          disabled={!ready}
-          why="Complete fields 1 to 4 (idea up to 15 words, a beneficiary, a pillar, three signs with reasons)."
+          missing={missing}
           onSubmit={() => task.submit(req, (g) => saveLanding(d.id, a, g))}
           onHint={() => task.ask(req)}
           hintsLeft={task.hintsLeft}
@@ -397,10 +422,10 @@ export function AeolusTask() {
   const sailTo = useGame((s) => s.sailTo)
   const pIds = useGame(useShallow((s) => landedIn(s, 'proposition')))
   const aIds = useGame(useShallow((s) => landedIn(s, 'architecture')))
-  const [a, setA] = useState<AeolusAnswer>(() => aeolus?.answer ?? { p: pIds[0] ?? null, a: aIds[0] ?? null, sentence: '' })
+  const [a, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: pIds[0] ?? null, a: aIds[0] ?? null, sentence: '' })
   const [rolling, setRolling] = useState(false)
   const task = useGradedTask('aeolus', aeolus?.grades ?? [])
-  const missing = pIds.length === 0 ? 'proposition' : aIds.length === 0 ? 'architecture' : null
+  const missingSea = pIds.length === 0 ? 'proposition' : aIds.length === 0 ? 'architecture' : null
 
   const template = (p: number | null, x: number | null) =>
     p && x ? `Because we ${landings[x]?.answer.idea.replace(/\.$/, '') ?? '[architecture change]'}, we can offer ${landings[p]?.answer.idea.replace(/\.$/, '') ?? '[proposition change]'} to [who], which makes [one contribution] go [+ or −].` : ''
@@ -418,10 +443,10 @@ export function AeolusTask() {
     }, 700)
   }
 
-  if (missing) {
+  if (missingSea) {
     const s = useGame.getState()
-    const rec = voyageById(s.voyageId).recommended.filter((id) => (missing === 'proposition' ? id <= 7 : id >= 8))
-    const target = rec[0] ?? (missing === 'proposition' ? 1 : 8)
+    const rec = voyageById(s.voyageId).recommended.filter((id) => (missingSea === 'proposition' ? id <= 7 : id >= 8))
+    const target = rec[0] ?? (missingSea === 'proposition' ? 1 : 8)
     return (
       <>
         <div className="panel-head">
@@ -432,7 +457,7 @@ export function AeolusTask() {
         </div>
         <div className="panel-body">
           <div className="hint">
-            <b>Aeolus says:</b> the winds need one idea from each sea. You have not landed in the Sea of the Value {missing === 'proposition' ? 'Proposition' : 'Architecture'} yet.
+            <b>Aeolus says:</b> the winds need one idea from each sea. You have not landed in the Sea of the Value {missingSea === 'proposition' ? 'Proposition' : 'Architecture'} yet.
           </div>
           <div className="submit-row">
             <button className="btn primary" onClick={() => sailTo(STOPS.findIndex((x) => x.directionId === target))}>
@@ -444,7 +469,12 @@ export function AeolusTask() {
     )
   }
 
-  const ready = a.p && a.a && wordCount(a.sentence) >= 12 && !a.sentence.includes('[')
+  const missing = [
+    !a.p && 'Pick one idea from the west wind (value proposition).',
+    !a.a && 'Pick one idea from the east wind (value architecture).',
+    a.sentence.includes('[') && 'Replace every [bracket] in the sentence with your own words.',
+    wordCount(a.sentence) < 12 && 'Write the combined plan in at least 12 words.',
+  ].filter(Boolean) as string[]
   const req = {
     kind: 'aeolus' as const,
     answer: `Proposition idea (direction ${a.p}): ${landings[a.p!]?.answer.idea}\nArchitecture idea (direction ${a.a}): ${landings[a.a!]?.answer.idea}\nCombined sentence: ${a.sentence}`,
@@ -509,8 +539,7 @@ export function AeolusTask() {
         {task.editing && (
           <SubmitRow
             busy={task.busy}
-            disabled={!ready}
-            why="Pick one idea from each wind and replace every [bracket] in the sentence."
+            missing={missing}
             onSubmit={() => task.submit(req, (g) => saveAeolus(a, g))}
             onHint={() => task.ask(req)}
             hintsLeft={task.hintsLeft}
@@ -545,7 +574,7 @@ export function LemnosTask() {
   const landings = useGame((s) => s.landings)
   const aeolus = useGame((s) => s.aeolus?.answer)
   const saveLemnos = useGame((s) => s.saveLemnos)
-  const [a, setA] = useState<LemnosAnswer>(() => {
+  const [a, setA] = useDraft<LemnosAnswer>('lemnos', () => {
     if (lemnos) return lemnos.answer
     const first = Object.values(landings)[0]?.answer
     return {
@@ -570,7 +599,13 @@ export function LemnosTask() {
   const task = useGradedTask('lemnos', lemnos?.grades ?? [])
   const before = troy.attributes.map((x) => x.level)
   const lowered = a.curve.some((v, i) => v < before[i])
-  const ready = wordCount(a.name) >= 1 && wordCount(a.pitch) >= 8 && a.zone && Object.values(a.indicators).every(Boolean) && wordCount(a.antagonism) >= 5
+  const missing = [
+    !a.name.trim() && 'Give your business model a name.',
+    wordCount(a.pitch) < 8 && 'Write a pitch of at least 8 words.',
+    !a.zone && 'Choose a position on the perceived value versus price map.',
+    !Object.values(a.indicators).every(Boolean) && 'Set all nine contribution indicators to +, 0 or \u2212.',
+    wordCount(a.antagonism) < 5 && 'Name the main antagonism (at least 5 words).',
+  ].filter(Boolean) as string[]
   const req = {
     kind: 'lemnos' as const,
     answer: [
@@ -649,8 +684,7 @@ export function LemnosTask() {
         {task.editing && (
           <SubmitRow
             busy={task.busy}
-            disabled={!ready}
-            why="Name, pitch, a zone, all nine signs and the antagonism."
+            missing={missing}
             onSubmit={() => task.submit(req, (g) => saveLemnos(a, g))}
             onHint={() => task.ask(req)}
             hintsLeft={task.hintsLeft}
@@ -678,10 +712,16 @@ export function OlympusTask() {
   const lemnos = useGame((s) => s.lemnos?.answer)
   const saveOlympus = useGame((s) => s.saveOlympus)
   const risk = Object.values(landings).find((l) => l.answer.risk)?.answer.risk ?? ''
-  const [a, setA] = useState<OlympusAnswer>(() => olympus?.answer ?? { god: '', answer: '', assumption: risk, mvp: '', stake: '' })
+  const [a, setA] = useDraft<OlympusAnswer>('olympus', () => olympus?.answer ?? { god: '', answer: '', assumption: risk, mvp: '', stake: '' })
   const task = useGradedTask('olympus', olympus?.grades ?? [])
   const god = GODS.find((g) => g.id === a.god)
-  const ready = god && wordCount(a.answer) >= 8 && wordCount(a.assumption) >= 4 && wordCount(a.mvp) >= 5 && wordCount(a.stake) >= 3
+  const missing = [
+    !god && 'Choose one god to answer.',
+    god && wordCount(a.answer) < 8 && 'Answer the god in at least 8 words.',
+    wordCount(a.assumption) < 4 && 'State your riskiest assumption (at least 4 words).',
+    wordCount(a.mvp) < 5 && 'Describe your cheapest test (at least 5 words).',
+    wordCount(a.stake) < 3 && 'Say what users put at stake and your threshold.',
+  ].filter(Boolean) as string[]
   const req = {
     kind: 'olympus' as const,
     answer: [
@@ -734,8 +774,7 @@ export function OlympusTask() {
         {task.editing && (
           <SubmitRow
             busy={task.busy}
-            disabled={!ready}
-            why="Answer one god and fill the three test fields."
+            missing={missing}
             onSubmit={() => task.submit(req, (g) => saveOlympus(a, g))}
             onHint={() => task.ask(req)}
             hintsLeft={task.hintsLeft}

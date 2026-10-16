@@ -149,7 +149,6 @@ export function Lemnos() {
               <cylinderGeometry args={[0.95, 0.95, 0.05, 9]} />
               <meshStandardMaterial color="#ff7a2a" emissive="#ff5a10" emissiveIntensity={4} />
             </mesh>
-            <pointLight ref={glow} position={[0, 5, 0]} color="#ff7a2a" intensity={14} distance={14} />
             <group position={[3.2, 0, 1.6]}>
               <mesh position={[0, 0.3, 0]} material={M.glaze} castShadow>
                 <boxGeometry args={[0.8, 0.6, 0.4]} />
