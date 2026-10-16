@@ -1,0 +1,321 @@
+:root {
+  --glaze: #1d1714;
+  --clay: #c4562c;
+  --clay-light: #e2894f;
+  --clay-pale: #eaa36d;
+  --marble: #efe6d4;
+  --gold: #f0c75e;
+  --olive: #6f7f37;
+  --aegean: #0b3f5c;
+  --display: 'Marcellus', Georgia, serif;
+  --body: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+  --meander: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M1 11V1h9v7H5V5' fill='none' stroke='%231d1714' stroke-width='1.6' stroke-linecap='square'/%3E%3Cpath d='M0 11h24' stroke='%231d1714' stroke-width='1.6'/%3E%3Cpath d='M13 11V1h9v7h-5V5' fill='none' stroke='%231d1714' stroke-width='1.6' stroke-linecap='square'/%3E%3C/svg%3E");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--aegean);
+  color: var(--glaze);
+  font-family: var(--body);
+  font-size: 17px;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  margin: 0;
+}
+
+/* Panels are painted like the clay body of a black-figure vase. */
+.panel {
+  background: var(--clay-light);
+  color: var(--glaze);
+  border-radius: 6px;
+  box-shadow: 0 18px 40px rgba(20, 10, 4, 0.45), inset 0 0 0 2px var(--glaze);
+  position: relative;
+  padding: 26px 24px 20px;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  height: 14px;
+  background: var(--meander) repeat-x left center / 24px 12px;
+  border-bottom: 2px solid var(--glaze);
+  border-radius: 4px 4px 0 0;
+}
+
+.cartouche {
+  position: absolute;
+  z-index: 20;
+  top: 18px;
+  left: 18px;
+  max-width: 340px;
+  padding: 14px 18px;
+  background: var(--glaze);
+  color: var(--clay-pale);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.cartouche h1 {
+  font-size: 30px;
+  letter-spacing: 0.02em;
+  color: var(--clay-light);
+}
+.cartouche p {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.island-panel {
+  position: absolute;
+  z-index: 20;
+  right: 18px;
+  top: 18px;
+  width: min(380px, calc(100vw - 36px));
+  animation: rise 0.45s ease-out;
+}
+.panel-kicker {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.island-panel h2 {
+  font-size: 26px;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+.questions {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.45;
+}
+.questions li {
+  margin-bottom: 8px;
+}
+.examples {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 2px solid var(--glaze);
+  font-size: 15px;
+}
+
+.dock {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+
+.btn {
+  font: 500 16px var(--body);
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--glaze);
+  background: var(--marble);
+  color: var(--glaze);
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--glaze);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--glaze);
+}
+.btn:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+.btn.primary {
+  background: var(--glaze);
+  color: var(--clay-pale);
+}
+.btn.ghost {
+  background: rgba(239, 230, 212, 0.75);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Island tags float above the landmarks */
+.isle-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font: 500 15px var(--body);
+  background: rgba(239, 230, 212, 0.92);
+  color: var(--glaze);
+  border: 2px solid var(--glaze);
+  pointer-events: none;
+  transition: transform 0.2s, background 0.2s;
+}
+.isle-tag.lit {
+  transform: scale(1.15);
+  background: var(--gold);
+}
+.isle-tag.home,
+.isle-tag.olympus {
+  padding: 6px 14px;
+  background: var(--glaze);
+  color: var(--clay-pale);
+  font-family: var(--display);
+}
+.isle-num {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-family: var(--display);
+  font-size: 15px;
+}
+.isle-tag.proposition .isle-num {
+  background: var(--clay);
+  color: var(--glaze);
+}
+.isle-tag.architecture .isle-num {
+  background: var(--glaze);
+  color: var(--clay-light);
+}
+
+.sea-name {
+  font-family: var(--display);
+  font-size: 34px;
+  color: rgba(239, 230, 212, 0.8);
+  white-space: nowrap;
+  text-shadow: 0 2px 10px rgba(11, 63, 92, 0.6);
+  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+/* Aeolus' storm */
+.storm {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #1c2a36;
+  display: grid;
+  grid-template-columns: 1fr minmax(300px, 400px);
+  animation: fade 0.35s ease-out;
+}
+.storm-stage {
+  position: relative;
+  min-height: 0;
+}
+.storm-ui {
+  margin: 18px;
+  align-self: center;
+}
+.storm-ui h2 {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+.storm-ui p {
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+.roll-result {
+  background: var(--marble);
+  border: 2px solid var(--glaze);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  animation: rise 0.4s ease-out;
+}
+.roll-result p {
+  margin: 0 0 8px;
+}
+.roll-result .fuse {
+  margin: 10px 0 0;
+  font-weight: 700;
+}
+.die-chip {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+.die-chip.bf {
+  background: var(--clay);
+  color: var(--glaze);
+}
+.die-chip.rf {
+  background: var(--glaze);
+  color: var(--clay-light);
+}
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .cartouche {
+    max-width: calc(100vw - 36px);
+  }
+  .cartouche p {
+    display: none;
+  }
+  .island-panel {
+    top: auto;
+    bottom: 86px;
+    max-height: 45vh;
+    overflow: auto;
+  }
+  .storm {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
