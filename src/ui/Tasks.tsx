@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { audio } from '../audio/engine'
 import { directionById, type Direction } from '../content/directions'
 import { voyageById } from '../content/voyages'
@@ -359,7 +360,7 @@ export function IslandTask({ id }: { id: number }) {
 // ---------------------------------------------------------------- Narrows
 
 export function NarrowsCard() {
-  const landedP = useGame((s) => landedIn(s, 'proposition'))
+  const landedP = useGame(useShallow((s) => landedIn(s, 'proposition')))
   return (
     <>
       <div className="panel-head">
@@ -394,8 +395,8 @@ export function AeolusTask() {
   const aeolus = useGame((s) => s.aeolus)
   const saveAeolus = useGame((s) => s.saveAeolus)
   const sailTo = useGame((s) => s.sailTo)
-  const pIds = useGame((s) => landedIn(s, 'proposition'))
-  const aIds = useGame((s) => landedIn(s, 'architecture'))
+  const pIds = useGame(useShallow((s) => landedIn(s, 'proposition')))
+  const aIds = useGame(useShallow((s) => landedIn(s, 'architecture')))
   const [a, setA] = useState<AeolusAnswer>(() => aeolus?.answer ?? { p: pIds[0] ?? null, a: aIds[0] ?? null, sentence: '' })
   const [rolling, setRolling] = useState(false)
   const task = useGradedTask('aeolus', aeolus?.grades ?? [])

@@ -22,8 +22,8 @@ function FogRig() {
   const chart = useGame((s) => s.chart)
   const scene = useThree((s) => s.scene)
   useFrame(() => {
-    const near = chart ? 320 : FOG.near
-    const far = chart ? 900 : FOG.far
+    const near = chart ? 600 : FOG.near
+    const far = chart ? 1400 : FOG.far
     fogState.near += (near - fogState.near) * 0.05
     fogState.far += (far - fogState.far) * 0.05
     const f = scene.fog as THREE.Fog | null
@@ -133,7 +133,7 @@ function Lights() {
 }
 
 function SeaNames() {
-  const common = { font: marcellus, fontSize: 4, color: PAL.marble, fillOpacity: 0.7, anchorX: 'center' as const, anchorY: 'middle' as const, letterSpacing: 0.08 }
+  const common = { font: marcellus, fontSize: 3.2, color: PAL.marble, fillOpacity: 0.55, anchorX: 'center' as const, anchorY: 'middle' as const, letterSpacing: 0.08 }
   const xp = X0 + SPACING * 4
   const xa = X0 + SPACING * 12
   return (
@@ -231,7 +231,7 @@ function CameraRig() {
     const visibleW = 2 * dist * Math.tan((38 * Math.PI) / 360) * (size.width / size.height)
     if (panelOpen) target.x += visibleW * 0.17
     c.getTarget(tmp)
-    tmp.lerp(target, s.sailing ? 0.08 : 0.05)
+    tmp.lerp(target, 1 - Math.exp(-dt * (s.sailing ? 4 : 2.6)))
     c.moveTo(tmp.x, 0, tmp.z, false)
   })
 

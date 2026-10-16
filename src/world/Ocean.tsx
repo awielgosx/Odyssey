@@ -104,7 +104,8 @@ void main() {
   }
 
   float shallow = 1.0 - smoothstep(0.0, 8.0, shore);
-  vec3 base = mix(uDeep, uMid, smoothstep(-0.2, 0.25, vWorld.y));
+  float hm = mix(smoothstep(-0.2, 0.25, vWorld.y), 0.45, smoothstep(70.0, 200.0, dist));
+  vec3 base = mix(uDeep, uMid, hm);
   base = mix(base, uShallow, shallow * 0.85);
 
   float diff = max(dot(n, uSunDir), 0.0);
@@ -113,7 +114,7 @@ void main() {
 
   vec3 sn = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.88));
   float fres = pow(1.0 - clamp(dot(sn, viewDir), 0.0, 1.0), 5.0);
-  col = mix(col, uSky, fres * 0.3);
+  col = mix(col, uSky, fres * 0.3 * (1.0 - smoothstep(120.0, 240.0, cameraPosition.y)));
   vec3 h = normalize(uSunDir + viewDir);
   float spec = pow(max(dot(sn, h), 0.0), 160.0);
   col += uSunColor * spec * 0.7;

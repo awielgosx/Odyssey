@@ -306,5 +306,5 @@ export function finalGrade(s: GameState): FinalGrade {
   const percent = Math.round((knowledge * 0.15 + framing * 0.1 + application * 0.4 + synthesis * 0.35) * 100)
   const rank = percent >= 85 ? 'Captain' : percent >= 70 ? 'Navigator' : percent >= 50 ? 'Helmsman' : 'Deckhand'
   const polytropos = percent >= 90 && Object.keys(s.landings).length >= 4 && firstTry === 14
-  return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent / 5) / 1, rank, polytropos }
+  return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent * 2) / 10, rank, polytropos }
 }

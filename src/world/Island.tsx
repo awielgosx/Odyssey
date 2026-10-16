@@ -144,7 +144,7 @@ export function StopTag({ stop, height }: { stop: Stop; height: number }) {
   const dir = stop.directionId ? directionById(stop.directionId) : null
   const recommended = dir ? voyageById(voyageId).recommended.includes(dir.id) : false
   return (
-    <Html position={[0, height + 3.4, 0]} center distanceFactor={44} zIndexRange={[10, 0]}>
+    <Html position={[0, height + 3.4, 0]} center zIndexRange={[10, 0]}>
       <div className={`flag ${state} ${dir ? dir.pillar : 'special'}`}>
         {dir ? (
           <>

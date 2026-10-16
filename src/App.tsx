@@ -28,13 +28,14 @@ function Panel() {
 
 export default function App() {
   const phase = useGame((s) => s.phase)
+  const chart = useGame((s) => s.chart)
   useKeys()
   useEffect(() => {
     // a reload mid-voyage returns to the title so audio can start on a click
     if (useGame.getState().sailing) useGame.setState({ sailing: false })
   }, [])
   return (
-    <div className="app">
+    <div className={`app ${chart ? 'charting' : ''}`}>
       <World />
       {phase === 'play' && (
         <>

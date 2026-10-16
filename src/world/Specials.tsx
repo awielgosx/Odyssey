@@ -136,17 +136,17 @@ export function Lemnos() {
   useFrame(({ clock }) => {
     if (glow.current) glow.current.intensity = 14 + Math.sin(clock.elapsedTime * 5) * 4
   })
-  const geo = useMemo(() => new THREE.CylinderGeometry(1.4, 4.2, 4.2, 9, 3), [])
+  const geo = useMemo(() => new THREE.CylinderGeometry(1.2, 3.6, 3.4, 9, 3), [])
   return (
     <Clickable stop={stop} tagY={4}>
       <Terrain poly={s.poly} height={s.height} seed={s.seed} scatter={6}>
         {(p) => (
           <group position={p}>
-            <mesh geometry={geo} position={[0, 2.1, 0]} castShadow receiveShadow>
+            <mesh geometry={geo} position={[0, 1.7, 0]} castShadow receiveShadow>
               <meshStandardMaterial color="#5b4a40" flatShading roughness={1} />
             </mesh>
-            <mesh position={[0, 4.21, 0]}>
-              <cylinderGeometry args={[1.1, 1.1, 0.05, 9]} />
+            <mesh position={[0, 3.41, 0]}>
+              <cylinderGeometry args={[0.95, 0.95, 0.05, 9]} />
               <meshStandardMaterial color="#ff7a2a" emissive="#ff5a10" emissiveIntensity={4} />
             </mesh>
             <pointLight ref={glow} position={[0, 5, 0]} color="#ff7a2a" intensity={14} distance={14} />
@@ -239,7 +239,7 @@ export function Narrows() {
         ))}
       </group>
       <Charybdis position={[NARROWS_X + 2, 0.25, z + 8]} />
-      <Html position={[NARROWS_X, 6, z]} center distanceFactor={44} zIndexRange={[10, 0]}>
+      <Html position={[NARROWS_X, 6, z]} center zIndexRange={[10, 0]}>
         <div className="flag special narrows">{stop.label}</div>
       </Html>
     </group>
