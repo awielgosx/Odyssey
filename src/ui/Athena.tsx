@@ -1,7 +1,7 @@
 // Athena, the player's mentor: a low-poly coach with a nod to the course's own professor (short
 // ash-blonde hair, tortoiseshell glasses), armed as the goddess of strategy is on Greek vases:
-// a great crested Corinthian helmet pushed up on her head, a bronze cuirass, the scaly aegis
-// with the Gorgon's head, a red cloak and a spear. Faceted SVG: costs nothing to render.
+// a great crested bronze helmet worn on her head, a bronze cuirass, the scaly aegis with the
+// Gorgon's head and a red cloak. Faceted SVG: costs nothing to render.
 
 export type Mood = 'neutral' | 'pleased' | 'stern'
 
@@ -28,11 +28,6 @@ export function Athena({ mood = 'neutral', size = 96, className = '' }: { mood?:
           <path d="M-2.5 2 Q0 6 2.5 2 M2.5 2 Q5 6 7.5 2" fill="none" stroke={AEGIS.light} strokeWidth="0.5" opacity="0.7" />
         </pattern>
       </defs>
-
-      {/* spear, behind her */}
-      <line x1="104" y1="10" x2="104" y2="120" stroke="#5a3c22" strokeWidth="2.6" />
-      <polygon points="104,0 108,12 104,18 100,12" fill={BRONZE.light} />
-      <polygon points="104,0 104,18 100,12" fill={BRONZE.shade} />
 
       {/* red cloak over the shoulders */}
       <polygon points="4,120 14,96 40,86 80,86 106,96 116,120" fill={CLOAK.mid} />
@@ -132,26 +127,24 @@ export function Athena({ mood = 'neutral', size = 96, className = '' }: { mood?:
       <polygon points="75,48 82,45 83,53 80,55" fill={HAIR.mid} />
       <path d="M45 44 L54 40 M50 48 L61 42 M62 45 L72 42 M40 50 L45 45" stroke={HAIR.root} strokeWidth="0.8" opacity="0.6" />
 
-      {/* a great Corinthian helmet, pushed up on the head: the face plate looks out above her brow */}
-      <polygon points="30,46 33,26 44,14 60,10 76,14 87,26 90,46 82,44 80,32 72,28 48,28 40,32 38,44" fill={BRONZE.mid} />
-      <polygon points="33,26 44,14 60,10 60,28 48,28 40,32 38,44 30,46" fill={BRONZE.light} />
-      <polygon points="60,10 76,14 87,26 90,46 82,44 80,32 72,28 60,28" fill={BRONZE.shade} />
-      {/* eye openings and nose guard of the face plate */}
-      <polygon points="43,30 56,30 55,37 47,38 42,35" fill="#1d1714" />
-      <polygon points="77,30 64,30 65,37 73,38 78,35" fill="#1d1714" />
-      <polygon points="57,29 63,29 62.5,42 60,44 57.5,42" fill={BRONZE.shade} />
-      <polygon points="57,29 60,29 60,44 57.5,42" fill={BRONZE.mid} />
-      {/* cheek guards sweeping down over the hair */}
-      <polygon points="30,46 38,44 40,52 34,56 29,52" fill={BRONZE.shade} />
-      <polygon points="90,46 82,44 80,52 86,56 91,52" fill={BRONZE.deep} />
-      <path d="M33 26 Q60 16 87 26" stroke={BRONZE.deep} strokeWidth="1.2" fill="none" opacity="0.8" />
-      <path d="M31 44 Q60 36 89 44" stroke={BRONZE.light} strokeWidth="0.9" fill="none" opacity="0.7" />
-      {/* tall horsehair crest, sweeping back */}
-      <polygon points="40,16 46,4 60,0 80,2 96,10 104,24 96,22 86,12 72,8 58,8 48,12" fill="#9a3f1c" />
-      <polygon points="46,4 60,0 80,2 72,8 58,8" fill="#c4562c" />
-      <polygon points="96,10 104,24 108,34 100,28 96,22" fill="#7f2f14" />
-      <path d="M50 8 L50 14 M58 4 L57 10 M66 2 L66 9 M74 3 L75 10 M82 5 L84 12 M90 9 L93 16 M97 15 L100 22" stroke="#6b260f" strokeWidth="0.9" opacity="0.75" />
-      <polygon points="44,14 60,10 76,14 60,13" fill="#1d1714" opacity="0.3" />
+      {/* a great bronze helmet worn on the head: the bowl covers the crown, the fringe shows under the brim */}
+      <polygon points="31,47 32,33 38,22 48,15 60,13 72,15 82,22 88,33 89,47 84,45 83,40 76,38 60,37 44,38 37,40 36,45" fill={BRONZE.mid} />
+      <polygon points="32,33 38,22 48,15 60,13 60,37 44,38 37,40 36,45 31,47" fill={BRONZE.light} />
+      <polygon points="60,13 72,15 82,22 88,33 89,47 84,45 83,40 76,38 60,37" fill={BRONZE.shade} />
+      <polygon points="48,15 60,13 72,15 66,20 54,20" fill="#f0d27a" opacity="0.55" />
+      {/* brim band */}
+      <polygon points="36,45 37,40 44,38 60,37 76,38 83,40 84,45 76,43 60,42 44,43" fill={BRONZE.deep} />
+      <path d="M38 41.5 Q60 37.5 82 41.5" stroke={BRONZE.light} strokeWidth="0.9" fill="none" opacity="0.8" />
+      {/* cheek pieces, raised, framing the face over the ears */}
+      <polygon points="31,47 36,45 39,56 35,62 31,58" fill={BRONZE.shade} />
+      <polygon points="89,47 84,45 81,56 85,62 89,58" fill={BRONZE.deep} />
+      <path d="M40 30 Q60 22 80 30" stroke={BRONZE.deep} strokeWidth="1" fill="none" opacity="0.6" />
+      {/* crest holder and tall horsehair crest, sweeping back */}
+      <polygon points="56,14 64,14 63,10 57,10" fill={BRONZE.deep} />
+      <polygon points="40,14 46,3 60,0 80,2 96,10 104,26 96,23 86,13 72,9 58,9 48,12" fill="#9a3f1c" />
+      <polygon points="46,3 60,0 80,2 72,9 58,9" fill="#c4562c" />
+      <polygon points="96,10 104,26 106,36 99,29 96,23" fill="#7f2f14" />
+      <path d="M50 7 L50 12 M58 3 L57 9 M66 1.5 L66 8 M74 3 L75 9 M82 5 L84 11 M90 9 L93 15 M97 15 L100 22" stroke="#6b260f" strokeWidth="0.9" opacity="0.75" />
 
       {/* the owl on her shoulder */}
       <g transform="translate(90 80)">
