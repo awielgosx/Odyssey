@@ -111,7 +111,7 @@ export function TroyTask() {
         <h2>Troy: the traditional model</h2>
         <p className="lede">
           Describe the business model <b>as it works today</b>, the way most of the industry does it. No new ideas yet: this is the benchmark you will reinvent on the islands and compare against at the forge.{' '}
-          {own ? '' : 'This demo ship comes with the basics filled in; check them and add the two insights.'}
+          {own ? '' : 'This demo ship comes with Troy filled in, insights included: read it, adjust anything you disagree with, then submit.'}
         </p>
       </div>
       <div className="panel-body">
@@ -167,7 +167,7 @@ export function TroyTask() {
           />
         )}
         {task.last && !task.editing && (
-          <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} />
+          <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />
         )}
       </div>
     </>
@@ -292,8 +292,9 @@ function StepInput({ step, n, value, onChange }: { step: Step; n: string; value:
       const r = (value as Record<string, string>) ?? {}
       return (
         <div className="field">
-          <div className="field-label">
-            {label} <small>+ better, 0 no change, {'−'} worse</small>
+          <div className="field-label stack">
+            <span>{label}</span>
+            <small className="legend">+ better, 0 no change, {'−'} worse</small>
           </div>
           {CONTRIBS.map((k) => (
             <div className="contrib-row" key={k}>
@@ -350,7 +351,7 @@ function IslandWork({ d }: { d: Direction }) {
           hintBusy={task.hintBusy}
         />
       )}
-      {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} />}
+      {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
     </div>
   )
 }
@@ -627,7 +628,7 @@ export function AeolusTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} />}
+        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
       </div>
     </>
   )
@@ -776,7 +777,7 @@ export function LemnosTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} />}
+        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
       </div>
     </>
   )
@@ -864,7 +865,7 @@ export function OlympusTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} />}
+        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
       </div>
     </>
   )

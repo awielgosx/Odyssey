@@ -69,35 +69,99 @@ export const cliffTexture = () =>
     grain(c, 1024, 256, 0.06)
   })
 
-// The sail carries the apotropaic eye painted on Greek ships and cups.
-export const sailTexture = () =>
-  make('sail', 512, 512, (c) => {
-    c.fillStyle = PAL.marble
+// Three sails, one per ship style. The black ship carries the apotropaic eye painted on Greek
+// ships and cups, the red one Athena's owl, the blue one a leaping dolphin.
+export const sailTexture = (style: 'black' | 'owl' | 'dolphin' = 'black') =>
+  make(`sail-${style}`, 512, 512, (c) => {
+    if (style === 'dolphin') {
+      for (let i = 0; i < 8; i++) {
+        c.fillStyle = i % 2 ? PAL.marble : '#2f6f9a'
+        c.fillRect(i * 64, 0, 64, 512)
+      }
+      c.fillStyle = PAL.marble
+      c.beginPath()
+      c.arc(256, 256, 150, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = PAL.glaze
+      c.save()
+      c.translate(256, 262)
+      c.beginPath()
+      c.moveTo(-120, 30)
+      c.quadraticCurveTo(-40, -110, 90, -40)
+      c.lineTo(125, -55)
+      c.lineTo(108, -22)
+      c.quadraticCurveTo(40, 30, -60, 40)
+      c.lineTo(-95, 85)
+      c.lineTo(-92, 42)
+      c.closePath()
+      c.fill()
+      c.beginPath()
+      c.moveTo(-10, -62)
+      c.lineTo(10, -112)
+      c.lineTo(30, -55)
+      c.closePath()
+      c.fill()
+      c.restore()
+      grain(c, 512, 512, 0.05)
+      return
+    }
+    const owl = style === 'owl'
+    c.fillStyle = owl ? PAL.clay : PAL.marble
     c.fillRect(0, 0, 512, 512)
-    c.fillStyle = PAL.clay
+    c.fillStyle = owl ? PAL.glaze : PAL.clay
     c.fillRect(0, 0, 512, 70)
     c.fillRect(0, 442, 512, 70)
-    drawMeander(c, 0, 12, 512, 46, PAL.glaze)
-    drawMeander(c, 0, 454, 512, 46, PAL.glaze)
-    // eye
+    drawMeander(c, 0, 12, 512, 46, owl ? PAL.clay : PAL.glaze)
+    drawMeander(c, 0, 454, 512, 46, owl ? PAL.clay : PAL.glaze)
     c.save()
     c.translate(256, 256)
-    c.fillStyle = PAL.glaze
-    c.beginPath()
-    c.ellipse(0, 0, 150, 78, 0, 0, Math.PI * 2)
-    c.fill()
-    c.fillStyle = PAL.marble
-    c.beginPath()
-    c.ellipse(0, 0, 128, 60, 0, 0, Math.PI * 2)
-    c.fill()
-    c.fillStyle = PAL.clay
-    c.beginPath()
-    c.arc(0, 0, 50, 0, Math.PI * 2)
-    c.fill()
-    c.fillStyle = PAL.glaze
-    c.beginPath()
-    c.arc(0, 0, 26, 0, Math.PI * 2)
-    c.fill()
+    if (owl) {
+      c.fillStyle = PAL.glaze
+      c.beginPath()
+      c.ellipse(0, 30, 95, 125, 0, 0, Math.PI * 2)
+      c.fill()
+      c.beginPath()
+      c.moveTo(-85, -70)
+      c.lineTo(-70, -135)
+      c.lineTo(-30, -85)
+      c.moveTo(85, -70)
+      c.lineTo(70, -135)
+      c.lineTo(30, -85)
+      c.fill()
+      for (const x of [-40, 40]) {
+        c.fillStyle = PAL.ochre
+        c.beginPath()
+        c.arc(x, -30, 34, 0, Math.PI * 2)
+        c.fill()
+        c.fillStyle = PAL.glaze
+        c.beginPath()
+        c.arc(x, -30, 14, 0, Math.PI * 2)
+        c.fill()
+      }
+      c.fillStyle = PAL.ochre
+      c.beginPath()
+      c.moveTo(-10, 0)
+      c.lineTo(10, 0)
+      c.lineTo(0, 22)
+      c.fill()
+    } else {
+      c.fillStyle = PAL.glaze
+      c.beginPath()
+      c.ellipse(0, 0, 150, 78, 0, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = PAL.marble
+      c.beginPath()
+      c.ellipse(0, 0, 128, 60, 0, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = PAL.clay
+      c.beginPath()
+      c.arc(0, 0, 50, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = PAL.glaze
+      c.beginPath()
+      c.arc(0, 0, 26, 0, Math.PI * 2)
+      c.fill()
+    }
     c.restore()
     grain(c, 512, 512, 0.05)
   })

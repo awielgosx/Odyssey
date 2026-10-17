@@ -67,7 +67,7 @@ export function Field({
   )
 }
 
-export function GradeView({ grade, attempt, canRevise, onRevise }: { grade: Grade; attempt: number; canRevise: boolean; onRevise?: () => void }) {
+export function GradeView({ grade, attempt, canRevise, onRevise, onRetry, busy }: { grade: Grade; attempt: number; canRevise: boolean; onRevise?: () => void; onRetry?: () => void; busy?: boolean }) {
   return (
     <div className="grade" role="status">
       <div className="grade-head">
@@ -89,8 +89,17 @@ export function GradeView({ grade, attempt, canRevise, onRevise }: { grade: Grad
           <b>Athena asks:</b> {grade.question}
         </div>
       )}
-      {grade.source === 'estimate' && <p className="estimate">Estimated by simple checks because the AI coach was unavailable. Capped below full marks.</p>}
-      {canRevise && onRevise && grade.total < grade.max && (
+      {grade.source === 'estimate' && (
+        <div className="estimate">
+          <p>Athena could not be reached just now (busy or offline), so this is a provisional estimate from simple checks, capped below full marks. It will be replaced by her real review.</p>
+          {onRetry && (
+            <button className="btn small primary" disabled={busy} onClick={onRetry}>
+              {busy ? 'Athena is reading\u2026' : 'Ask Athena again'}
+            </button>
+          )}
+        </div>
+      )}
+      {canRevise && onRevise && grade.total < grade.max && grade.source !== 'estimate' && (
         <div className="submit-row">
           <button className="btn small" onClick={onRevise}>
             Revise once

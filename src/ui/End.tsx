@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { DIRECTIONS, directionById } from '../content/directions'
 import { flattenLanding } from '../content/landing'
 import { voyageById } from '../content/voyages'
 import { bestGrade, finalGrade, useGame } from '../store'
+import { ExportDialog } from './Export'
 import { GODS, INDICATORS, ZONES } from './Tasks'
 
 const fmt = (n: number) => `${Math.round(n * 100)}%`
@@ -19,7 +19,7 @@ export function buildLog(): string {
   const L: string[] = []
   L.push(`# Captain's Log: ${lem?.name || 'Untitled business model'}`)
   L.push('')
-  L.push(`Captain: ${s.captain} | Voyage: ${v.id === 'own' ? 'own project' : `practice (${v.title})`} | Rank: ${g.rank}${g.polytropos ? ' (Polytropos)' : ''} | Score: ${g.outOf20}/20 (${g.percent}%) | Time: ${minutes} min | ${new Date().toLocaleDateString()}`)
+  L.push(`Captain: ${s.captain}${s.crew?.length ? ` | Crew: ${s.crew.join(', ')}` : ''} | Voyage: ${v.id === 'own' ? 'own project' : `practice (${v.title})`} | Rank: ${g.rank}${g.polytropos ? ' (Polytropos)' : ''} | Score: ${g.outOf20}/20 (${g.percent}%) | Time: ${minutes} min | ${new Date().toLocaleDateString()}`)
   L.push('')
   L.push('## 1. Context: Troy, the business today')
   if (t) {
@@ -110,7 +110,7 @@ export function IthacaEnd() {
   const s = useGame()
   const v = voyageById(s.voyageId)
   const g = finalGrade(s)
-  const [print, setPrint] = useState('')
+  const [exporting, setExporting] = useState(false)
   const complete = !!bestGrade(s.olympus)
   const slug = (s.lemnos?.answer.name || 'voyage').replace(/[^\w]+/g, '-').toLowerCase()
   const minutes = s.startedAt ? Math.round(((s.finishedAt ?? Date.now()) - s.startedAt) / 60000) : 0
@@ -162,27 +162,22 @@ export function IthacaEnd() {
           </div>
         )}
         <div className="section">
-          <h3>Your Captain's Log</h3>
+          <h3>Your assignment, ready to submit</h3>
           <p className="lede" style={{ marginTop: 0 }}>
-            Structured like the course's business model description: context, innovation, value proposition, value architecture, contributions and test plan, plus every answer and every review Athena gave.
+            Your answers laid out like the course’s business model description: title and tagline, context, innovation and results, value curve, value architecture and contributions, with an appendix of all fourteen directions. Choose a professional or a Greek style, edit any text, then save it as a PDF.
           </p>
           <div className="submit-row">
-            <button className="btn primary" onClick={() => download(`captains-log-${slug}.md`, buildLog(), 'text/markdown')}>
-              Download the log
+            <button className="btn primary" disabled={!complete} onClick={() => setExporting(true)}>
+              Export as PDF
             </button>
-            <button
-              className="btn"
-              onClick={() => {
-                setPrint(buildLog())
-                setTimeout(() => window.print(), 100)
-              }}
-            >
-              Print or save as PDF
+            <button className="btn small" onClick={() => download(`captains-log-${slug}.md`, buildLog(), 'text/markdown')}>
+              Download the full log (text)
             </button>
             <button className="btn small" onClick={() => download(`voyage-${slug}.json`, JSON.stringify(useGame.getState(), null, 2), 'application/json')}>
               Save voyage file
             </button>
           </div>
+          {!complete && <p className="count">The PDF unlocks once the gods on Olympus have reviewed your model.</p>}
         </div>
         <div className="section">
           <button
@@ -194,27 +189,8 @@ export function IthacaEnd() {
             Start a new voyage
           </button>
         </div>
-        {print && <PrintLog text={print} />}
+        {exporting && <ExportDialog onClose={() => setExporting(false)} />}
       </div>
     </>
-  )
-}
-
-function PrintLog({ text }: { text: string }) {
-  return createPortal(
-    <div className="print-log">
-      {text.split('\n').map((line, i) =>
-        line.startsWith('# ') ? (
-          <h1 key={i}>{line.slice(2)}</h1>
-        ) : line.startsWith('## ') ? (
-          <h2 key={i}>{line.slice(3)}</h2>
-        ) : (
-          <p key={i} style={{ margin: '2px 0' }}>
-            {line}
-          </p>
-        ),
-      )}
-    </div>,
-    document.body,
   )
 }

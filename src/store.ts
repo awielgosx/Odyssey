@@ -8,6 +8,7 @@ export type { Landing, NarrowsAnswer, Sign }
 
 export type Quality = 'high' | 'low'
 export type Phase = 'title' | 'intro' | 'setup' | 'play'
+export type ShipStyle = 'black' | 'owl' | 'dolphin'
 
 export interface Grade {
   scores: { criterion: string; score: number; max: number; note: string }[]
@@ -74,6 +75,8 @@ interface GameState {
   introStep: number
   voyageId: string
   captain: string
+  crew: string[]
+  shipStyle: ShipStyle
   startedAt: number | null
   finishedAt: number | null
   // position
@@ -96,7 +99,7 @@ interface GameState {
   toast: { text: string; id: number } | null
   // actions
   set: (p: Partial<GameState>) => void
-  startVoyage: (voyageId: string, captain: string) => void
+  startVoyage: (voyageId: string, captain: string, crew?: string[], shipStyle?: ShipStyle) => void
   sailTo: (index: number) => void
   arrive: () => void
   answerCheck: (id: number, optionIndex: number, correct: boolean) => void
@@ -133,6 +136,8 @@ const fresh = {
   introStep: 0,
   voyageId: 'phone',
   captain: '',
+  crew: [] as string[],
+  shipStyle: 'black' as ShipStyle,
   startedAt: null,
   finishedAt: null,
   stopIndex: 0,
@@ -153,8 +158,11 @@ const fresh = {
   toast: null,
 }
 
+// An offline estimate is provisional: the next review replaces it instead of counting as a revision.
 function push<T>(prev: Attempts<T> | null | undefined, answer: T, grade?: Grade): Attempts<T> {
-  return { answer, grades: grade ? [...(prev?.grades ?? []), grade] : prev?.grades ?? [] }
+  const old = prev?.grades ?? []
+  const kept = old.length && old[old.length - 1].source === 'estimate' ? old.slice(0, -1) : old
+  return { answer, grades: grade ? [...kept, grade] : old }
 }
 
 export const useGame = create<GameState>()(
@@ -165,13 +173,15 @@ export const useGame = create<GameState>()(
       wax: false,
       ...fresh,
       set: (p) => set(p),
-      startVoyage: (voyageId, captain) => {
+      startVoyage: (voyageId, captain, crew = [], shipStyle = 'black') => {
         const v = voyageById(voyageId)
         set({
           ...fresh,
           phase: 'play',
           voyageId,
           captain: captain.trim() || CREW[Math.floor(Math.random() * CREW.length)],
+          crew: crew.map((c) => c.trim()).filter(Boolean),
+          shipStyle,
           startedAt: Date.now(),
           troy: {
             answer: {
@@ -181,9 +191,9 @@ export const useGame = create<GameState>()(
               payer: v.payer,
               price: v.price,
               attributes: v.attributes.map((a) => ({ ...a })),
-              frustration: '',
-              orthodoxy: '',
-              trend: '',
+              frustration: v.frustration ?? '',
+              orthodoxy: v.orthodoxy ?? '',
+              trend: v.trend ?? '',
             },
             grades: [],
           },

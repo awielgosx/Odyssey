@@ -1,7 +1,7 @@
 import marcellus from '@fontsource/marcellus/files/marcellus-latin-400-normal.woff?url'
 import { CameraControls, Text } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -277,7 +277,8 @@ function Effects() {
   if (quality === 'low') return null
   return (
     <EffectComposer multisampling={0}>
-      <N8AO aoRadius={2.2} intensity={2.0} distanceFalloff={1.2} halfRes />
+      {/* No N8AO: on Apple GPUs its half-resolution depth pass produced NaN patches that Bloom
+          smeared into large black shapes on the sea. Shadow maps already give the contact shading. */}
       <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={0.7} mipmapBlur />
       <HueSaturation saturation={0.12} />
       <BrightnessContrast contrast={0.06} />

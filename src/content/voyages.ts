@@ -17,6 +17,10 @@ export interface Voyage {
   payer: string
   price: string
   attributes: Attribute[]
+  // the two Troy insights, prefilled for demo ships so a class walkthrough can start straight away
+  frustration?: string
+  orthodoxy?: string
+  trend?: string
   chain?: string[] // value chain steps, prefilled at the Narrows for demo ships
   resources?: string[]
   partners?: string
@@ -42,6 +46,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Ethical sourcing', level: 1 },
       { name: 'Years of software support', level: 2 },
     ],
+    frustration: 'Phones slow down or break after two or three years, and a repair costs almost as much as a new phone.',
+    orthodoxy: 'Smartphone makers earn their money by selling a new phone every two to three years, so durability is not their business.',
+    trend: 'Right-to-repair laws and buyers worried about e-waste and conflict minerals',
     chain: ['Design hardware and software', 'Source components', 'Assemble in contract factories', 'Sell through carriers and stores', 'Repair in after-sales centres'],
     resources: ['Brand', 'Chip and software design know-how', 'Global supply contracts'],
     partners: 'Component suppliers, contract manufacturers, mobile carriers',
@@ -69,6 +76,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Environmental responsibility', level: 1 },
       { name: 'Surprise and playfulness', level: 1 },
     ],
+    frustration: 'Clients who pay for exceptional craft find the same pieces in every boutique worldwide; true uniqueness is rare.',
+    orthodoxy: 'A piece with the slightest flaw must be rejected or destroyed, or the brand is damaged.',
+    trend: 'Public anger at luxury brands destroying unsold stock and wasting precious materials',
     chain: ['Source precious materials', 'Craft in in-house workshops', 'Quality control: reject flawed pieces', 'Sell in flagship stores', 'Client service and repairs'],
     resources: ['Artisans’ know-how', 'Brand prestige', 'Stock of rare materials'],
     partners: 'Tanneries, silk weavers, crystal makers',
@@ -96,6 +106,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Low carbon footprint', level: 1 },
       { name: 'Free of lactose and residues', level: 2 },
     ],
+    frustration: 'Food brands face volatile milk prices and growing pressure to cut the carbon footprint of their products.',
+    orthodoxy: 'Dairy protein can only come from cows, so supply follows herds, farms and seasons.',
+    trend: 'Demand for animal-free food and carbon reporting rules for food companies',
     chain: ['Collect milk from dairy farms', 'Separate and filter whey', 'Dry and package the powder', 'Sell in bulk to food makers', 'Ship by the tonne'],
     resources: ['Processing plants', 'Food-safety certifications', 'Long relationships with food brands'],
     partners: 'Dairy farmers and cooperatives, logistics firms',
@@ -123,6 +136,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Predictable costs', level: 2 },
       { name: 'Fuel efficiency', level: 4 },
     ],
+    frustration: 'Fleet managers cannot predict tyre costs: badly maintained tyres wear out early and cause breakdowns on the road.',
+    orthodoxy: "Tyre makers sell tyres; looking after them is the fleet's problem.",
+    trend: 'Cheap imported tyres, and fleets outsourcing everything except driving',
     chain: ['Research and design tyres', 'Manufacture tyres', 'Sell through distributors', 'Fit tyres at garages', 'Retread or scrap worn tyres'],
     resources: ['Tyre technology and patents', 'Brand reputation', 'European factory network'],
     partners: 'Distributors, independent garages',

@@ -12,7 +12,14 @@ import { sailTexture } from './textures'
 const start = STOPS[0].dock
 export const shipState = { pos: new THREE.Vector3(start.x, 0, start.z), heading: 0, dir: 1, sailing: false }
 
-function useHullGeometry() {
+// hull colours per ship style: [main, stripe]
+export const HULLS = {
+  black: [PAL.glaze, PAL.clay],
+  owl: [PAL.clay, PAL.glaze],
+  dolphin: ['#24577a', PAL.ochre],
+} as const
+
+function useHullGeometry(style: keyof typeof HULLS) {
   return useMemo(() => {
     const s = new THREE.Shape()
     s.moveTo(-1.55, 0.95)
@@ -28,8 +35,8 @@ function useHullGeometry() {
     g.translate(0, 0, -0.35)
     const pos = g.attributes.position
     const colors: number[] = []
-    const glaze = new THREE.Color(PAL.glaze)
-    const clay = new THREE.Color(PAL.clay)
+    const glaze = new THREE.Color(HULLS[style][0])
+    const clay = new THREE.Color(HULLS[style][1])
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i)
       const y = pos.getY(i)
@@ -42,7 +49,7 @@ function useHullGeometry() {
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
     g.computeVertexNormals()
     return g
-  }, [])
+  }, [style])
 }
 
 function useSailGeometry() {
@@ -69,10 +76,11 @@ export function Ship() {
   const stopIndex = useGame((s) => s.stopIndex)
   const sailing = useGame((s) => s.sailing)
   const arrive = useGame((s) => s.arrive)
-  const hull = useHullGeometry()
+  const style = useGame((s) => s.shipStyle) ?? 'black'
+  const hull = useHullGeometry(style)
   const sailGeo = useSailGeometry()
   const hullMat = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, flatShading: true }), [])
-  const sailMat = useMemo(() => new THREE.MeshStandardMaterial({ map: sailTexture(), side: THREE.DoubleSide, roughness: 0.9, flatShading: true }), [])
+  const sailMat = useMemo(() => new THREE.MeshStandardMaterial({ map: sailTexture(style), side: THREE.DoubleSide, roughness: 0.9, flatShading: true }), [style])
   const voyage = useRef<{ from: number; to: number; t: number; dur: number } | null>(null)
   const stroke = useRef(0)
   const blink = useRef(60 + Math.random() * 30)

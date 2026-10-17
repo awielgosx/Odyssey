@@ -9,11 +9,12 @@ export interface GradeRequest {
   kind: TaskKind
   directionId?: number
   context: string // the reference business, in a few lines
+  journey?: string // earlier answers on this voyage, so Athena can build on them
   answer: string // the student's answer, flattened to labelled lines
   extra?: object // structured fields for the fallback grader
 }
 
-const TIMEOUT_MS = 16000
+const TIMEOUT_MS = 30000
 
 export async function requestGrade(req: GradeRequest): Promise<Grade> {
   try {
@@ -159,9 +160,7 @@ export function estimate(req: GradeRequest): Grade {
     total,
     max: maxFor(req.kind),
     feedback:
-      total >= maxFor(req.kind) - 1
-        ? 'Solid work. Athena is offline, so this is an estimate from simple checks; the structure is all there.'
-        : 'Athena is offline, so this is an estimate from simple checks. Strengthen the weakest point below and revise once.',
+      total >= maxFor(req.kind) - 1 ? 'The structure is all there, judging by simple checks.' : 'Judging by simple checks, one part still looks thin.',
     question: weakest.question,
     source: 'estimate',
   }

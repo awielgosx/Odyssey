@@ -127,6 +127,8 @@ void main() {
   fog = fog * fog * (3.0 - 2.0 * fog);
   col = mix(col, uFogColor, fog);
   col = clamp(col, 0.0, 4.0);
+  // last line of defence: a NaN here would be smeared into a black blob by Bloom
+  if (any(isnan(col)) || any(isinf(col))) col = mix(uMid, uFogColor, fog);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }

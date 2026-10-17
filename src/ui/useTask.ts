@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { audio } from '../audio/engine'
 import { requestGrade, requestHint, type GradeRequest } from '../coach/grade'
+import { DIRECTIONS } from '../content/directions'
+import { summaryOf } from '../content/landing'
 import { voyageById } from '../content/voyages'
 import { useGame, type Grade } from '../store'
 
@@ -22,6 +24,19 @@ export function troyContext() {
     .join('\n')
 }
 
+// Earlier answers on this voyage, so Athena's reviews and nudges build on them
+export function journeyContext(skip?: string) {
+  const s = useGame.getState()
+  const lines: string[] = []
+  DIRECTIONS.forEach((d) => {
+    const l = s.landings[d.id]
+    if (l && skip !== `land${d.id}`) lines.push(`Island ${d.id} (${d.name}): ${summaryOf(d, l.answer).slice(0, 160)}`)
+  })
+  if (s.aeolus && skip !== 'aeolus') lines.push(`Aeolus plan: ${s.aeolus.answer.sentence}`)
+  if (s.lemnos && skip !== 'lemnos') lines.push(`Lemnos model: ${s.lemnos.answer.name}: ${s.lemnos.answer.pitch}`)
+  return lines.join('\n')
+}
+
 // Shared submit / revise / hint flow for every graded task.
 export function useGradedTask(key: string, grades: Grade[]) {
   const [busy, setBusy] = useState(false)
@@ -31,10 +46,13 @@ export function useGradedTask(key: string, grades: Grade[]) {
   const [hintBusy, setHintBusy] = useState(false)
   const used = useGame((s) => s.hints[key] ?? 0)
 
+  const lastCall = useRef<{ req: Omit<GradeRequest, 'context'>; save: (g: Grade) => void } | null>(null)
+
   const submit = async (req: Omit<GradeRequest, 'context'>, save: (g: Grade) => void) => {
+    lastCall.current = { req, save }
     setBusy(true)
     audio.submit()
-    const g = await requestGrade({ ...req, context: troyContext() })
+    const g = await requestGrade({ ...req, context: troyContext(), journey: journeyContext(key) })
     save(g)
     setBusy(false)
     setEditing(false)
@@ -46,18 +64,22 @@ export function useGradedTask(key: string, grades: Grade[]) {
   const ask = async (req: Omit<GradeRequest, 'context'>) => {
     if (used >= 2) return
     setHintBusy(true)
-    const q = await requestHint({ ...req, context: troyContext() }, hints)
+    const q = await requestHint({ ...req, context: troyContext(), journey: journeyContext(key) }, hints)
     setHints((h) => [...h, q])
     useGame.getState().useHint(key)
     setHintBusy(false)
     audio.click()
   }
 
+  // after an offline estimate: ask the real coach again (the estimate is replaced, not counted as a revision)
+  const retry = () => (lastCall.current ? submit(lastCall.current.req, lastCall.current.save) : setEditing(true))
+
   return {
     busy,
     editing,
     setEditing,
     submit,
+    retry,
     ask,
     hints,
     hintBusy,
