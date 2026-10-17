@@ -20,6 +20,7 @@ class Engine {
   windGain!: GainNode
   windFilter!: BiquadFilterNode
   sirenGain: GainNode | null = null
+  sirenLevel = -1
   timers: number[] = []
   sailing = false
   musicOn = true
@@ -40,8 +41,8 @@ class Engine {
     this.wax = ctx.createBiquadFilter()
     this.wax.type = 'lowpass'
     this.wax.frequency.value = 20000
-    const comp = ctx.createDynamicsCompressor()
-    this.master.connect(this.wax).connect(comp).connect(ctx.destination)
+    // No DynamicsCompressor: one stray NaN sample latches it into permanent silence in Chromium.
+    this.master.connect(this.wax).connect(ctx.destination)
     this.amb = this.bus(0.5)
     this.music = this.bus(0.32)
     this.sfx = this.bus(0.7)
@@ -54,8 +55,29 @@ class Engine {
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return
       if (document.hidden) this.ctx.suspend()
-      else if (!this.muted) this.ctx.resume()
+      else this.wake()
     })
+    window.setInterval(() => this.wake(), 3000)
+  }
+
+  // Browsers (Safari above all) suspend or "interrupt" the context after tab switches, sleep or
+  // other audio, and a reload mid-voyage skips the title click that used to start the sound.
+  // Any click or key press (re)starts it.
+  listen() {
+    if (typeof window === 'undefined') return
+    const gesture = () => {
+      if (this.muted) return
+      if (!this.started) this.start()
+      else this.wake()
+    }
+    window.addEventListener('pointerdown', gesture, { passive: true, capture: true })
+    window.addEventListener('keydown', gesture, { passive: true, capture: true })
+  }
+
+  wake() {
+    const ctx = this.ctx
+    if (!ctx || this.muted || document.hidden) return
+    if (ctx.state !== 'running') ctx.resume().catch(() => undefined)
   }
 
   bus(gain: number) {
@@ -79,9 +101,12 @@ class Engine {
         prev = prev * 0.5 + r * 0.5 // low-passed excitation: a softer, gut-string pluck
         out[i] = prev
       } else {
-        out[i] = 0.996 * 0.5 * (out[i - N] + out[i - N - 1])
+        // (i === N has no sample at i - N - 1: reading it gave NaN, and the first lyre phrase then
+        // poisoned every filter downstream, silencing the whole mix for the rest of the voyage)
+        out[i] = 0.996 * 0.5 * (out[i - N] + (i > N ? out[i - N - 1] : out[i - N]))
       }
     }
+    for (let i = 0; i < out.length; i++) if (!Number.isFinite(out[i])) out[i] = 0
     return buf
   }
 
@@ -398,7 +423,7 @@ class Engine {
 
   // Sirens: three voices, enharmonic glide, volume by proximity (0..1)
   siren(level: number) {
-    if (!this.ctx) return
+    if (!this.ctx || (!this.sirenGain && level <= 0)) return
     const ctx = this.ctx
     if (!this.sirenGain) {
       this.sirenGain = ctx.createGain()
@@ -435,6 +460,9 @@ class Engine {
         }, 1400 + i * 300)
       })
     }
+    // called every frame: only schedule a change when the level really moves
+    if (!Number.isFinite(level) || Math.abs(level - this.sirenLevel) < 0.02) return
+    this.sirenLevel = level
     this.sirenGain.gain.setTargetAtTime(level * 0.12, ctx.currentTime, 0.4)
   }
 
@@ -444,7 +472,7 @@ class Engine {
     const now = this.ctx.currentTime
     this.master.gain.setTargetAtTime(m ? 0 : 0.9, now, 0.05)
     if (m) window.setTimeout(() => this.muted && this.ctx?.suspend(), 200)
-    else this.ctx.resume()
+    else this.ctx.resume().catch(() => undefined)
   }
 
   setWax(on: boolean) {
@@ -454,3 +482,4 @@ class Engine {
 }
 
 export const audio = new Engine()
+audio.listen()

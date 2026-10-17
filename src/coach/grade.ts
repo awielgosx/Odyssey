@@ -1,4 +1,5 @@
 import { directionById } from '../content/directions'
+import { allText, missingFor, type Landing } from '../content/landing'
 import type { Grade } from '../store'
 import { maxFor, RUBRICS, type TaskKind } from './rubrics'
 
@@ -95,7 +96,7 @@ function lexHits(text: string, lexicon: string[]) {
   return lexicon.filter((k) => lower.includes(k)).length
 }
 
-const CAP: Record<TaskKind, number> = { troy: 4, landing: 6, aeolus: 3, lemnos: 6, olympus: 3 }
+const CAP: Record<TaskKind, number> = { troy: 4, landing: 4, aeolus: 3, lemnos: 6, olympus: 3 }
 
 export function estimate(req: GradeRequest): Grade {
   const rubric = RUBRICS[req.kind]
@@ -111,18 +112,13 @@ export function estimate(req: GradeRequest): Grade {
     }
     case 'landing': {
       const d = directionById(req.directionId ?? 1)
-      const text = `${e.idea} ${e.whoText} ${e.knock}`
+      const answer = e as Landing
+      const text = allText(answer)
       const hits = lexHits(text, d.lexicon)
-      raw.fit = hits >= 2 ? 2 : hits === 1 ? 1 : words(e.idea ?? '') >= 6 ? 1 : 0
-      raw.specificity = specificity(`${e.idea} ${e.whoText}`)
-      const pillars = (e.pillars ?? []) as string[]
-      const right = pillars.some((p) => (d.pillar === 'proposition' ? p.startsWith('P') : p.startsWith('A')))
-      raw.pillars = (right ? 1 : 0) + (words(e.knock ?? '') >= 6 ? 1 : 0)
-      const c = e.contrib as unknown as Record<string, { sign: string; reason: string }>
-      const vals = c ? Object.values(c) : []
-      const allSet = vals.length === 3 && vals.every((v) => v.sign && words(v.reason) >= 3)
-      const tradeoff = vals.some((v) => v.sign === '0' || v.sign === '-')
-      raw.contributions = (allSet ? 1 : 0) + (allSet && tradeoff ? 1 : 0)
+      raw.grounded = specificity(text)
+      raw.logic = hits >= 2 ? 2 : hits === 1 || words(text) >= 14 ? 1 : 0
+      const honest = /\b(but|cost|costs|worse|lose|risk|trade|give up|instead|less|fewer|pay)\b/i.test(text)
+      raw.consequence = (missingFor(d, answer).length === 0 && words(text) >= 16 ? 1 : 0) + (honest ? 1 : 0)
       break
     }
     case 'aeolus': {

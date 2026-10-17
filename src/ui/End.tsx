@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DIRECTIONS, directionById } from '../content/directions'
+import { flattenLanding } from '../content/landing'
 import { voyageById } from '../content/voyages'
-import { bestGrade, finalGrade, landedIn, useGame } from '../store'
+import { bestGrade, finalGrade, useGame } from '../store'
 import { GODS, INDICATORS, ZONES } from './Tasks'
 
 const fmt = (n: number) => `${Math.round(n * 100)}%`
@@ -33,32 +34,38 @@ export function buildLog(): string {
   L.push(`- ${lem?.name ?? ''}: ${lem?.pitch ?? ''}`)
   if (s.aeolus) L.push(`- Combined plan (Aeolus): ${s.aeolus.answer.sentence}`)
   L.push('')
-  L.push('## 3. Value proposition: value curve')
+  L.push('## 3. Value architecture today (the Narrows)')
+  if (s.narrows) {
+    L.push(`- Value chain: ${s.narrows.chain.join(' > ')}`)
+    L.push(`- Key resources: ${s.narrows.resources.join(', ')}`)
+    if (s.narrows.partners) L.push(`- Partners: ${s.narrows.partners}`)
+  }
+  L.push('')
+  L.push('## 4. Value proposition: value curve')
   L.push('| Attribute | Troy | New |')
   L.push('|---|---|---|')
   t?.attributes.forEach((a, i) => L.push(`| ${a.name} | ${a.level} | ${lem?.curve[i] ?? ''} |`))
   if (lem?.zone) L.push(`\nPosition: ${ZONES.find((z) => z.id === lem.zone)?.label}`)
   L.push('')
-  L.push('## 4. Directions explored')
+  L.push('## 5. The fourteen directions')
   DIRECTIONS.forEach((d) => {
     const c = s.checks[d.id]
     const l = s.landings[d.id]
-    L.push(`- ${d.id}. ${d.name}: quick check ${c?.done ? (c.firstTry ? 'right first time' : 'answered') : 'not answered'}${l ? ', landed' : ''}`)
+    L.push(`- ${d.id}. ${d.name}: quick check ${c?.done ? (c.firstTry ? 'right first time' : 'answered') : 'not answered'}`)
     if (l) {
       const scores = l.grades.map((x) => `${x.total}/${x.max}${x.source === 'estimate' ? ' (estimate)' : ''}`).join(' -> ')
-      L.push(`  - Idea: ${l.answer.idea}`)
-      L.push(`  - Who benefits: ${l.answer.who}: ${l.answer.whoText}`)
-      L.push(`  - Pillar shift: ${l.answer.pillars.join(', ')}. Knock-on: ${l.answer.knock}`)
-      L.push(`  - Contributions: ${Object.entries(l.answer.contrib).map(([k, x]) => `${k} ${x.sign} (${x.reason})`).join('; ')}`)
-      L.push(`  - Athena's review: ${scores}; hints used: ${s.hints[`land${d.id}`] ?? 0}`)
+      flattenLanding(d, l.answer)
+        .split('\n')
+        .forEach((line) => L.push(line.startsWith('-') ? `    ${line}` : `  - ${line}`))
+      L.push(`  - Athena's review: ${scores}; nudges used: ${s.hints[`land${d.id}`] ?? 0}`)
     }
   })
   L.push('')
-  L.push('## 5. Contributions')
+  L.push('## 6. Contributions')
   INDICATORS.forEach((grp) => L.push(`- ${grp.group}: ${grp.items.map(([k, label]) => `${label} ${lem?.indicators[k] || '?'}`).join(', ')}`))
   if (lem?.antagonism) L.push(`- Main antagonism: ${lem.antagonism}`)
   L.push('')
-  L.push('## 6. Test plan (Olympus)')
+  L.push('## 7. Test plan (Olympus)')
   if (oly) {
     const god = GODS.find((x) => x.id === oly.god)
     L.push(`- ${god?.name} asked: ${god?.q}`)
@@ -68,14 +75,14 @@ export function buildLog(): string {
     L.push(`- What users put at stake: ${oly.stake}`)
   }
   L.push('')
-  L.push('## 7. Scores')
-  L.push(`- Knowledge (quick checks right first time): ${fmt(g.knowledge)}`)
+  L.push('## 8. Scores')
+  L.push(`- Knowledge (quick checks: 1 first try, 0.4 later): ${fmt(g.knowledge)}`)
   L.push(`- Framing (Troy): ${fmt(g.framing)}`)
-  L.push(`- Application (best landing per sea): ${fmt(g.application)}`)
+  L.push(`- Application (the fourteen island reviews): ${fmt(g.application)}`)
   L.push(`- Synthesis (Aeolus, Lemnos, Olympus): ${fmt(g.synthesis)}`)
   if (v.reveal) {
     L.push('')
-    L.push(`## 8. Tiresias' reveal: ${v.reveal.company}`)
+    L.push(`## 9. Tiresias' reveal: ${v.reveal.company}`)
     L.push(v.reveal.text)
     L.push(`Directions the real company used: ${v.reveal.directions.map((id) => `${id}. ${directionById(id).name}`).join('; ')}`)
   }
@@ -126,9 +133,9 @@ export function IthacaEnd() {
           </div>
         </div>
         {[
-          ['Knowledge', g.knowledge, 'Quick checks right first time (15%)'],
+          ['Knowledge', g.knowledge, 'Quick checks: 1 point first try, 0.4 later (15%)'],
           ['Framing', g.framing, 'Troy (10%)'],
-          ['Application', g.application, 'Best landing in each sea (40%)'],
+          ['Application', g.application, 'Your fourteen island answers (40%)'],
           ['Synthesis', g.synthesis, 'Aeolus, Lemnos, Olympus (35%)'],
         ].map(([label, val, sub]) => (
           <div className="bar-row" key={label as string} title={sub as string}>
@@ -140,8 +147,8 @@ export function IthacaEnd() {
           </div>
         ))}
         <p className="count" style={{ marginTop: 10 }}>
-          {Object.keys(s.landings).length} landings, {landedIn(s, 'proposition').length} in the first sea and {landedIn(s, 'architecture').length} in the second. Voyage time: {minutes} minutes.
-          {Object.keys(s.landings).length >= 6 ? ' Badge: Explorer.' : ''}
+          {Object.values(s.checks).filter((c) => c.firstTry).length} of 14 quick checks right first time. Voyage time: {minutes} minutes.
+          {Object.values(s.landings).filter((l) => (l.grades.at(-1)?.total ?? 0) >= 5).length >= 7 ? ' Badge: Explorer (seven islands scored 5 or 6).' : ''}
           {Object.values(s.checks).filter((c) => c.firstTry).length === 14 ? ' Badge: Cartographer.' : ''}
           {minutes > 0 && minutes <= 20 ? ' Badge: Swift keel.' : ''}
         </p>
@@ -150,14 +157,14 @@ export function IthacaEnd() {
             <h3>Tiresias reveals: {v.reveal.company}</h3>
             <div className="case">{v.reveal.text}</div>
             <p className="lede">
-              Directions the real company used: {v.reveal.directions.map((id) => id).join(', ')}. You landed on: {Object.keys(s.landings).join(', ') || 'none'}. Where did your path differ, and is your model better or worse for it?
+              Directions the real company used: {v.reveal.directions.map((id) => id).join(', ')}. Your Aeolus plan combined islands {s.aeolus?.answer.p} and {s.aeolus?.answer.a}. Where did your path differ, and is your model better or worse for it?
             </p>
           </div>
         )}
         <div className="section">
           <h3>Your Captain's Log</h3>
           <p className="lede" style={{ marginTop: 0 }}>
-            Structured like the course's business model description: context, innovation, value proposition, value architecture, contributions and test plan, plus every review Athena gave.
+            Structured like the course's business model description: context, innovation, value proposition, value architecture, contributions and test plan, plus every answer and every review Athena gave.
           </p>
           <div className="submit-row">
             <button className="btn primary" onClick={() => download(`captains-log-${slug}.md`, buildLog(), 'text/markdown')}>

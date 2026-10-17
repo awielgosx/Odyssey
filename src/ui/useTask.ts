@@ -16,14 +16,18 @@ export function troyContext() {
     `Value curve today: ${t.attributes.map((a) => `${a.name || '?'} ${a.level}/5`).join(', ')}`,
     `Customer frustration: ${t.frustration}`,
     `Industry orthodoxy: ${t.orthodoxy}`,
-  ].join('\n')
+    s.narrows ? `Value chain: ${s.narrows.chain.filter(Boolean).join(' > ')}. Key resources: ${s.narrows.resources.filter(Boolean).join(', ')}. Partners: ${s.narrows.partners}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 // Shared submit / revise / hint flow for every graded task.
 export function useGradedTask(key: string, grades: Grade[]) {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(grades.length === 0)
-  const [hints, setHints] = useState<string[]>([])
+  // kept in the store so Athena never repeats a question after the panel closes
+  const [hints, setHints] = useDraft<string[]>(`hints:${key}`, () => [])
   const [hintBusy, setHintBusy] = useState(false)
   const used = useGame((s) => s.hints[key] ?? 0)
 

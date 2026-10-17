@@ -17,6 +17,9 @@ export interface Voyage {
   payer: string
   price: string
   attributes: Attribute[]
+  chain?: string[] // value chain steps, prefilled at the Narrows for demo ships
+  resources?: string[]
+  partners?: string
   recommended: number[]
   reveal?: { company: string; directions: number[]; text: string }
 }
@@ -39,6 +42,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Ethical sourcing', level: 1 },
       { name: 'Years of software support', level: 2 },
     ],
+    chain: ['Design hardware and software', 'Source components', 'Assemble in contract factories', 'Sell through carriers and stores', 'Repair in after-sales centres'],
+    resources: ['Brand', 'Chip and software design know-how', 'Global supply contracts'],
+    partners: 'Component suppliers, contract manufacturers, mobile carriers',
     recommended: [4, 7, 10, 11],
     reveal: {
       company: 'Fairphone',
@@ -63,6 +69,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Environmental responsibility', level: 1 },
       { name: 'Surprise and playfulness', level: 1 },
     ],
+    chain: ['Source precious materials', 'Craft in in-house workshops', 'Quality control: reject flawed pieces', 'Sell in flagship stores', 'Client service and repairs'],
+    resources: ['Artisans’ know-how', 'Brand prestige', 'Stock of rare materials'],
+    partners: 'Tanneries, silk weavers, crystal makers',
     recommended: [4, 5, 11, 14],
     reveal: {
       company: 'Hermès Petit h',
@@ -87,6 +96,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Low carbon footprint', level: 1 },
       { name: 'Free of lactose and residues', level: 2 },
     ],
+    chain: ['Collect milk from dairy farms', 'Separate and filter whey', 'Dry and package the powder', 'Sell in bulk to food makers', 'Ship by the tonne'],
+    resources: ['Processing plants', 'Food-safety certifications', 'Long relationships with food brands'],
+    partners: 'Dairy farmers and cooperatives, logistics firms',
     recommended: [3, 8, 11, 14],
     reveal: {
       company: 'Perfect Day',
@@ -111,6 +123,9 @@ export const VOYAGES: Voyage[] = [
       { name: 'Predictable costs', level: 2 },
       { name: 'Fuel efficiency', level: 4 },
     ],
+    chain: ['Research and design tyres', 'Manufacture tyres', 'Sell through distributors', 'Fit tyres at garages', 'Retread or scrap worn tyres'],
+    resources: ['Tyre technology and patents', 'Brand reputation', 'European factory network'],
+    partners: 'Distributors, independent garages',
     recommended: [2, 7, 13, 14],
     reveal: {
       company: 'Michelin Fleet Solutions',

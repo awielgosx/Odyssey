@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
+import { audio } from './audio/engine'
 import { useGame } from './store'
 import { IthacaEnd } from './ui/End'
 import { Coach, Nav, Ribbon, Toast, TopRight, useKeys } from './ui/Hud'
 import { Intro, Setup, Title } from './ui/Overlays'
-import { AeolusTask, IslandTask, LemnosTask, NarrowsCard, OlympusTask, TroyTask } from './ui/Tasks'
+import { AeolusTask, IslandTask, LemnosTask, NarrowsTask, OlympusTask, TroyTask } from './ui/Tasks'
 import { STOPS } from './world/layout'
 import { World } from './world/World'
 
@@ -17,7 +18,7 @@ function Panel() {
     <aside className="panel parchment" key={stop.key} aria-label={stop.label}>
       {stop.kind === 'troy' && <TroyTask />}
       {stop.kind === 'island' && <IslandTask id={stop.directionId!} />}
-      {stop.kind === 'narrows' && <NarrowsCard />}
+      {stop.kind === 'narrows' && <NarrowsTask />}
       {stop.kind === 'aeolus' && <AeolusTask />}
       {stop.kind === 'lemnos' && <LemnosTask />}
       {stop.kind === 'olympus' && <OlympusTask />}
@@ -33,6 +34,7 @@ export default function App() {
   useEffect(() => {
     // a reload mid-voyage returns to the title so audio can start on a click
     if (useGame.getState().sailing) useGame.setState({ sailing: false })
+    audio.setMuted(!useGame.getState().sound)
   }, [])
   return (
     <div className={`app ${chart ? 'charting' : ''}`}>

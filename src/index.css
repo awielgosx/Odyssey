@@ -1122,3 +1122,123 @@ textarea {
   margin: 0;
   font-style: italic;
 }
+
+/* ---------- island questions ---------- */
+.field {
+  margin-top: 14px;
+}
+.field-label {
+  justify-content: flex-start;
+  line-height: 1.35;
+}
+.step-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--parch);
+  font: 13px var(--display);
+}
+label.field > span .step-n {
+  margin-right: 6px;
+}
+label.field > span {
+  justify-content: flex-start;
+  line-height: 1.35;
+}
+label.field > span .count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.slots {
+  display: grid;
+  gap: 8px;
+}
+.slots.n3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.slots.n2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.slot {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.slot small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.25;
+}
+.slot textarea {
+  min-height: 70px;
+  font-size: 15px;
+  padding: 7px 9px;
+}
+.slots.n2 .slot + .slot {
+  position: relative;
+}
+.slots.n2 .slot + .slot::before {
+  content: '→';
+  position: absolute;
+  left: -9px;
+  top: 34px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+@media (max-width: 1250px) {
+  .slots.n3 {
+    grid-template-columns: 1fr;
+  }
+  .slots.n3 .slot textarea {
+    min-height: 44px;
+  }
+}
+.locked-note {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--ink-soft);
+  border-radius: 6px;
+}
+.chain-list {
+  margin: 8px 0 0;
+  padding-left: 26px;
+  display: grid;
+  gap: 6px;
+}
+.chain-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  counter-reset: step;
+}
+.chain-view li {
+  counter-increment: step;
+  padding: 5px 10px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 6px;
+  background: rgba(255, 252, 242, 0.6);
+  font-size: 15px;
+}
+.chain-view li::before {
+  content: counter(step) '. ';
+  font-weight: 700;
+}
+.score-mini {
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 1px solid currentColor;
+  font-variant-numeric: tabular-nums;
+}
+.section h3 small.count {
+  font-family: var(--body);
+  margin-left: 8px;
+}

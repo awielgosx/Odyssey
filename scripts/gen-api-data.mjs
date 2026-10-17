@@ -12,7 +12,7 @@ async function load(path) {
 const d = await load('src/content/directions.ts')
 const r = await load('src/coach/rubrics.ts')
 const data = {
-  directions: d.DIRECTIONS.map(({ id, name, pillar, definition, questions }) => ({ id, name, pillar, definition, questions })),
+  directions: d.DIRECTIONS.map(({ id, name, pillar, definition, caseTitle, lens, questions }) => ({ id, name, pillar, definition, caseTitle, lens, questions })),
   rubrics: r.RUBRICS,
   method: r.METHOD_SUMMARY,
 }

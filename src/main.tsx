@@ -17,4 +17,5 @@ if (import.meta.env.DEV) {
   import('./store').then(({ useGame }) => {
     ;(window as unknown as { __game: typeof useGame }).__game = useGame
   })
+  import('./audio/engine').then(({ audio }) => ((window as unknown as { __audio: unknown }).__audio = audio))
 }

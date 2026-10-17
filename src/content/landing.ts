@@ -1,0 +1,113 @@
+// Island answers: each direction asks its own one to three questions (see Direction.steps).
+import { ADD_STEPS, type Direction, type Step } from './directions'
+
+export type Sign = '+' | '0' | '-'
+export type LandingValue = string | string[] | Record<string, string>
+export type Landing = Record<string, LandingValue>
+
+export interface NarrowsAnswer {
+  chain: string[]
+  resources: string[]
+  partners: string
+}
+
+export interface StepContext {
+  attributes: string[]
+  chain: string[]
+  resources: string[]
+}
+
+export const CONTRIBS = ['financial', 'environmental', 'societal'] as const
+
+const words = (s: string) => (s.match(/[\p{L}\p{N}%€$'’-]+/gu) ?? []).length
+
+export function optionsFor(step: Step, ctx: StepContext): string[] {
+  if (step.kind !== 'pick') return []
+  if (step.options) return step.options
+  const clean = (xs: string[]) => xs.map((x) => x.trim()).filter(Boolean)
+  switch (step.source) {
+    case 'attributes':
+      return clean(ctx.attributes)
+    case 'chain':
+      return clean(ctx.chain)
+    case 'resources':
+      return clean(ctx.resources)
+    case 'cutAdd':
+      return [...clean(ctx.chain).map((s) => `Remove: ${s}`), ...ADD_STEPS]
+    default:
+      return []
+  }
+}
+
+export function emptyLanding(d: Direction): Landing {
+  const a: Landing = {}
+  d.steps.forEach((s) => {
+    if (s.kind === 'slots') a[s.id] = s.slots.map(() => '')
+    else if (s.kind === 'checks') a[s.id] = []
+    else if (s.kind === 'signs') a[s.id] = { financial: '', environmental: '', societal: '' }
+    else a[s.id] = ''
+  })
+  return a
+}
+
+export function missingFor(d: Direction, a: Landing): string[] {
+  const out: string[] = []
+  d.steps.forEach((s, i) => {
+    const n = d.steps.length > 1 ? `${i + 1}. ` : ''
+    const v = a[s.id]
+    if (s.kind === 'pick' && !v) out.push(`${n}Pick one option.`)
+    if (s.kind === 'text') {
+      const w = words(String(v ?? ''))
+      if (w < s.min) out.push(`${n}Write at least ${s.min} word${s.min > 1 ? 's' : ''}${s.short ? '' : ' (be concrete: who, what, how)'}.`)
+      if (w > s.max + 10) out.push(`${n}Cut it down to about ${s.max} words.`)
+    }
+    if (s.kind === 'slots') {
+      const arr = (v as string[]) ?? []
+      const empty = s.slots.map((sl, j) => (words(arr[j] ?? '') < s.min ? sl.label : null)).filter(Boolean)
+      if (empty.length) out.push(`${n}Fill in ${empty.map((e) => `“${e}”`).join(', ')} (at least ${s.min} word${s.min > 1 ? 's' : ''} each).`)
+    }
+    if (s.kind === 'signs') {
+      const r = (v as Record<string, string>) ?? {}
+      if (!CONTRIBS.every((k) => r[k])) out.push(`${n}Give each contribution a sign: +, 0 or −.`)
+    }
+  })
+  return out
+}
+
+const show = (v: LandingValue | undefined): string => {
+  if (v == null) return ''
+  if (typeof v === 'string') return v.trim()
+  if (Array.isArray(v)) return v.map((x) => x.trim()).filter(Boolean).join('; ')
+  return CONTRIBS.map((k) => `${k} ${v[k] || '?'}`).join(', ')
+}
+
+// One line that captures the idea, for Aeolus and the Captain's Log
+export function summaryOf(d: Direction, a: Landing | undefined): string {
+  if (!a) return ''
+  const main = d.steps.find((s) => s.id === d.main)
+  if (!main) return show(a[d.main])
+  if (main.kind === 'slots') {
+    const arr = (a[main.id] as string[]) ?? []
+    const lead = d.steps.find((s) => s.kind === 'pick' || (s.kind === 'text' && s.short))
+    const head = lead ? show(a[lead.id]) : ''
+    // before/after pairs read best as the "after" alone
+    const body = main.slots.length === 2 ? arr[1] ?? '' : arr.filter(Boolean).join('; ')
+    return head ? `${head}: ${body}` : body
+  }
+  return show(a[main.id])
+}
+
+// Question-and-answer lines for the coach and the log
+export function flattenLanding(d: Direction, a: Landing): string {
+  return d.steps
+    .map((s) => {
+      if (s.kind === 'slots') {
+        const arr = (a[s.id] as string[]) ?? []
+        return `${s.label}\n${s.slots.map((sl, j) => `- ${sl.label}: ${arr[j] ?? ''}`).join('\n')}`
+      }
+      return `${s.label}\n- ${show(a[s.id]) || '(blank)'}`
+    })
+    .join('\n')
+}
+
+export const allText = (a: Landing | undefined) => (a ? Object.values(a).map(show).join(' ') : '')

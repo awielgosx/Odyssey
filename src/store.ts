@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import type { Landing, NarrowsAnswer, Sign } from './content/landing'
 import { voyageById, type Attribute } from './content/voyages'
 import { STOPS } from './world/layout'
 
+export type { Landing, NarrowsAnswer, Sign }
+
 export type Quality = 'high' | 'low'
 export type Phase = 'title' | 'intro' | 'setup' | 'play'
-export type Sign = '+' | '0' | '-'
 
 export interface Grade {
   scores: { criterion: string; score: number; max: number; note: string }[]
@@ -26,21 +28,6 @@ export interface TroyAnswer {
   frustration: string
   orthodoxy: string
   trend: string
-}
-
-export interface ContribAnswer {
-  sign: Sign | ''
-  reason: string
-}
-
-export interface Landing {
-  idea: string
-  who: string
-  whoText: string
-  pillars: string[]
-  knock: string
-  contrib: { financial: ContribAnswer; environmental: ContribAnswer; societal: ContribAnswer }
-  risk: string
 }
 
 export interface CheckState {
@@ -96,6 +83,7 @@ interface GameState {
   chart: boolean
   // answers
   troy: Attempts<TroyAnswer> | null
+  narrows: NarrowsAnswer | null
   checks: Record<number, CheckState>
   landings: Record<number, Attempts<Landing>>
   landingOpen: number | null
@@ -113,6 +101,7 @@ interface GameState {
   arrive: () => void
   answerCheck: (id: number, optionIndex: number, correct: boolean) => void
   saveTroy: (answer: TroyAnswer, grade?: Grade) => void
+  saveNarrows: (answer: NarrowsAnswer) => void
   saveLanding: (id: number, answer: Landing, grade?: Grade) => void
   saveAeolus: (answer: AeolusAnswer, grade?: Grade) => void
   saveLemnos: (answer: LemnosAnswer, grade?: Grade) => void
@@ -151,6 +140,7 @@ const fresh = {
   sailing: false,
   chart: false,
   troy: null,
+  narrows: null,
   checks: {},
   landings: {},
   landingOpen: null,
@@ -197,6 +187,7 @@ export const useGame = create<GameState>()(
             },
             grades: [],
           },
+          narrows: v.chain ? { chain: [...v.chain], resources: [...(v.resources ?? [])], partners: v.partners ?? '' } : null,
         })
       },
       sailTo: (index) => {
@@ -225,6 +216,7 @@ export const useGame = create<GameState>()(
         })
       },
       saveTroy: (answer, grade) => set({ troy: push(get().troy, answer, grade) }),
+      saveNarrows: (answer) => set({ narrows: answer }),
       saveLanding: (id, answer, grade) => set({ landings: { ...get().landings, [id]: push(get().landings[id], answer, grade) } }),
       saveAeolus: (answer, grade) => set({ aeolus: push(get().aeolus, answer, grade) }),
       saveLemnos: (answer, grade) => set({ lemnos: push(get().lemnos, answer, grade) }),
@@ -241,6 +233,16 @@ export const useGame = create<GameState>()(
     {
       name: 'odyssey-314-voyage',
       storage: safeStorage,
+      version: 2,
+      // v2: islands ask their own questions. Keep Troy, clear answers built on the old island form.
+      migrate: (old, version) => {
+        const s = (old ?? {}) as Partial<GameState>
+        if (version < 2) {
+          const drafts = Object.fromEntries(Object.entries(s.drafts ?? {}).filter(([k]) => k === 'troy'))
+          return { ...s, landings: {}, aeolus: null, lemnos: null, olympus: null, narrows: null, drafts, stopIndex: Math.min(s.stopIndex ?? 0, 1), furthest: Math.min(s.furthest ?? 0, 1), finishedAt: null } as GameState
+        }
+        return s as GameState
+      },
       partialize: (s) => {
         // don't persist transient flags
         const { sailing, toast, chart, ...rest } = s
@@ -263,9 +265,9 @@ export function stopComplete(s: GameState, index: number): boolean {
     case 'troy':
       return !!bestGrade(s.troy)
     case 'island':
-      return !!s.checks[stop.directionId!]?.done
+      return !!s.checks[stop.directionId!]?.done && !!bestGrade(s.landings[stop.directionId!])
     case 'narrows':
-      return true
+      return !!s.narrows
     case 'aeolus':
       return !!bestGrade(s.aeolus)
     case 'lemnos':
@@ -303,15 +305,21 @@ export interface FinalGrade {
   polytropos: boolean
 }
 
+// Quick checks: 1 point right first time, 0.4 when found on a later try
+export const checkPoints = (s: Pick<GameState, 'checks'>) => Object.values(s.checks).reduce((m, c) => m + (c.done ? (c.firstTry ? 1 : 0.4) : 0), 0)
+
 export function finalGrade(s: GameState): FinalGrade {
   const firstTry = Object.values(s.checks).filter((c) => c.firstTry).length
-  const knowledge = firstTry / 14
+  const knowledge = checkPoints(s) / 14
   const framing = (bestGrade(s.troy)?.total ?? 0) / 4
-  const best = (ids: number[]) => Math.max(0, ...ids.map((id) => bestGrade(s.landings[id])?.total ?? 0))
-  const application = (best(landedIn(s, 'proposition')) + best(landedIn(s, 'architecture'))) / 16
+  // every island counts: the average of the fourteen island reviews
+  const application = Array.from({ length: 14 }, (_, i) => {
+    const g = bestGrade(s.landings[i + 1])
+    return g ? g.total / g.max : 0
+  }).reduce((m, x) => m + x, 0) / 14
   const synthesis = ((bestGrade(s.aeolus)?.total ?? 0) + (bestGrade(s.lemnos)?.total ?? 0) + (bestGrade(s.olympus)?.total ?? 0)) / 16
   const percent = Math.round((knowledge * 0.15 + framing * 0.1 + application * 0.4 + synthesis * 0.35) * 100)
   const rank = percent >= 85 ? 'Captain' : percent >= 70 ? 'Navigator' : percent >= 50 ? 'Helmsman' : 'Deckhand'
-  const polytropos = percent >= 90 && Object.keys(s.landings).length >= 4 && firstTry === 14
+  const polytropos = percent >= 90 && firstTry >= 12
   return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent * 2) / 10, rank, polytropos }
 }

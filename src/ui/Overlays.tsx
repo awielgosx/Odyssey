@@ -99,7 +99,7 @@ const STEPS = [
           <b>Troy.</b> Describe the traditional business model you want to reinvent.
         </li>
         <li>
-          <b>Fourteen numbered islands</b>, the 14 directions of Odyssey 3.14: islands 1 to 7 change the value proposition (<PillarBadge k="p" />), 8 to 14 the value architecture (<PillarBadge k="a" />). At each one, read a short case and answer one question. Where an idea sparks, <b>land</b> and apply the direction to your business. Land at least once in each sea.
+          <b>Fourteen numbered islands</b>, the 14 directions of Odyssey 3.14: islands 1 to 7 change the value proposition (<PillarBadge k="p" />), 8 to 14 the value architecture (<PillarBadge k="a" />). At each one: a real case, a quick check that tests the logic, then one or two short questions that apply the direction to your business. Halfway, at <b>the Narrows</b>, you chart how your business is built and delivered.
         </li>
         <li>
           <b>Aeolus</b> checks that your ideas hold together, <b>Lemnos</b> forges them into one model, and the <b>gods of Olympus</b> question it.
@@ -110,6 +110,12 @@ const STEPS = [
       </ol>
     ),
   },
+]
+
+const COACH_LINES = [
+  'I am Athena, disguised as Mentor. I will walk with you from Troy to Ithaca.',
+  'Learn these three pillars. I will come back to them at every island.',
+  'I ask, I never answer. And when an idea is weak, I will tell you so.',
 ]
 
 export function Intro() {
@@ -125,12 +131,10 @@ export function Intro() {
           {step + 1} of {STEPS.length}
         </p>
         <h2>{cur.title}</h2>
-        {step === 2 && (
-          <div className="intro-coach">
-            <Athena mood="neutral" size={84} />
-            <p>I am Athena, disguised as Mentor. I will ask, never answer.</p>
-          </div>
-        )}
+        <div className="intro-coach">
+          <Athena mood={step === 2 ? 'stern' : 'pleased'} size={88} />
+          <p>{COACH_LINES[step]}</p>
+        </div>
         {cur.body}
         <div className="dots">
           {STEPS.map((_, i) => (

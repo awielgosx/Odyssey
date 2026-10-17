@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { audio } from '../audio/engine'
 import { directionById } from '../content/directions'
 import { voyageById } from '../content/voyages'
-import { landedIn, laurels, stopComplete, useGame } from '../store'
+import { finalGrade, laurels, stopComplete, useGame } from '../store'
 import { STOPS } from '../world/layout'
 import { Athena, type Mood } from './Athena'
 
@@ -53,14 +53,18 @@ export function TopRight() {
   const s = useGame()
   const [menu, setMenu] = useState(false)
   const n = laurels(s)
+  const g = finalGrade(s)
   useEffect(() => {
     audio.setMuted(!s.sound)
     audio.setWax(s.wax)
   }, [s.sound, s.wax])
   return (
     <div className="hud-right">
-      <span className="chip static" title="Laurels earned">
-        {'❦'} {n}
+      <span
+        className="chip static"
+        title={`Laurels earned: ${n}. Voyage score so far: ${g.outOf20}/20 (knowledge ${Math.round(g.knowledge * 100)}%, Troy ${Math.round(g.framing * 100)}%, islands ${Math.round(g.application * 100)}%, synthesis ${Math.round(g.synthesis * 100)}%).`}
+      >
+        {'❦'} {n} <span className="score-mini">{g.outOf20}/20</span>
       </span>
       <span className="chip" style={{ gap: 8 }}>
         <button
@@ -132,17 +136,13 @@ export function Coach() {
         const id = stop.directionId!
         const c = s.checks[id]
         const l = s.landings[id]
-        if (!c?.done) line = 'Read the case, then answer the quick check to unlock the next island.'
-        else if (s.landingOpen === id && !l?.grades.length) line = 'Apply this direction to Troy. Short and concrete beats long and vague.'
-        else if (l?.grades.length) line = 'Landing reviewed. Revise once if you like, then sail on.'
-        else {
-          const sea = id <= 7 ? 'proposition' : 'architecture'
-          line = landedIn(s, sea).length ? 'Land here too, or sail on to the next island.' : 'Land here to apply it, or sail on. You need at least one landing in each sea.'
-        }
+        if (!c?.done) line = id === 1 ? 'Each island: a real case, one question that tests the logic, then two short questions about your business. Start with the case.' : 'Read the case, then answer the quick check. It tests the logic, not the wording.'
+        else if (!l?.grades.length) line = id === 8 ? 'New sea. Use the value chain you charted: pick a step, then be specific.' : 'Now apply it to Troy. Short and concrete beats long and vague.'
+        else line = 'Reviewed. Revise once if you like, then sail on.'
         break
       }
       case 'narrows':
-        line = 'Halfway. Next: how you build and deliver your offer.'
+        line = s.narrows ? 'Course charted. Next: how you build and deliver your offer.' : 'Halfway. Chart how Troy is built and delivered before you cross.'
         break
       case 'aeolus':
         line = s.aeolus?.grades.length ? 'Your plan holds. On to the forge.' : 'Pick one idea from each sea and tie them together in one sentence.'
@@ -211,8 +211,12 @@ export function Nav() {
                 stop.kind === 'troy'
                   ? 'First submit Troy to Athena: the button is at the bottom of the panel on the right.'
                   : stop.kind === 'island'
-                    ? 'Answer the quick check in the panel first. Then you can sail on.'
-                    : 'Submit your answer to Athena first (bottom of the panel on the right).',
+                    ? s.checks[stop.directionId!]?.done
+                      ? 'Answer this island’s questions and submit them to Athena first (bottom of the panel on the right).'
+                      : 'Answer the quick check in the panel first, then the island’s questions.'
+                    : stop.kind === 'narrows'
+                      ? 'Chart Troy’s value chain first (panel on the right). The next seven islands use it.'
+                      : 'Submit your answer to Athena first (bottom of the panel on the right).',
               )
               audio.wrong()
               return

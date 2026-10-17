@@ -1,10 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { audio } from '../audio/engine'
-import { directionById, type Direction } from '../content/directions'
+import { directionById, type Direction, type Step } from '../content/directions'
+import { CONTRIBS, emptyLanding, flattenLanding, missingFor, optionsFor, summaryOf, type Landing, type LandingValue, type NarrowsAnswer, type StepContext } from '../content/landing'
 import { voyageById } from '../content/voyages'
-import { landedIn, useGame, type AeolusAnswer, type Landing, type LemnosAnswer, type OlympusAnswer, type Sign, type TroyAnswer } from '../store'
-import { STOPS } from '../world/layout'
+import { landedIn, useGame, type AeolusAnswer, type LemnosAnswer, type OlympusAnswer, type TroyAnswer } from '../store'
 import { Field, GradeView, SignToggle, wordCount } from './common'
 import { useDraft, useGradedTask } from './useTask'
 import { AttributeEditor, CurveChart } from './ValueCurve'
@@ -190,10 +190,13 @@ function shuffleFor(id: number, n: number) {
 function Quiz({ d }: { d: Direction }) {
   const check = useGame((s) => s.checks[d.id])
   const answerCheck = useGame((s) => s.answerCheck)
+  const say = useGame((s) => s.say)
   const order = useMemo(() => shuffleFor(d.id, d.quiz.options.length), [d])
   return (
     <div className="section">
-      <h3>Quick check</h3>
+      <h3>
+        Quick check <small className="count">1 point first try, 0.4 after</small>
+      </h3>
       <p className="lede" style={{ marginTop: 0 }}>
         {d.quiz.question}
       </p>
@@ -208,9 +211,14 @@ function Quiz({ d }: { d: Direction }) {
               className={`opt ${reveal ? 'right' : ''} ${isWrong ? 'wrong' : ''}`}
               disabled={check?.done || isWrong}
               onClick={() => {
+                const first = !check?.wrong.length
                 answerCheck(d.id, oi, right)
-                if (right) (check?.wrong.length ? audio.success() : audio.laurel())
-                else audio.wrong()
+                if (right) {
+                  if (first) {
+                    audio.laurel()
+                    say('Right first time: +1 laurel and a full Knowledge point.')
+                  } else audio.success()
+                } else audio.wrong()
               }}
             >
               {d.quiz.options[oi]}
@@ -220,101 +228,116 @@ function Quiz({ d }: { d: Direction }) {
       </div>
       {check?.done && (
         <div className="why">
-          {check.firstTry ? 'Right first time: one laurel. ' : 'Got there. '}
+          <b>{check.firstTry ? 'Right first time (+1). ' : 'Found it (+0.4). '}</b>
           {d.quiz.why}
         </div>
       )}
-      {!check?.done && !!check?.wrong.length && <div className="why">Not quite. Reread the case above and try another answer.</div>}
+      {!check?.done && !!check?.wrong.length && <div className="why">Not quite. Think about the mechanism of the direction, not just the words of the case, and try again.</div>}
     </div>
   )
 }
 
-const P_BOXES = ['P: what is offered', 'P: who it is for', 'P: price or how it is paid']
-const A_BOXES = ['A: a value-chain step', 'A: a partner', 'A: a resource or competence']
-const WHO = ['User', 'Decision-maker', 'Payer', 'Partner', 'Society']
-
-function emptyLanding(): Landing {
+function stepContext(): StepContext {
+  const s = useGame.getState()
   return {
-    idea: '',
-    who: '',
-    whoText: '',
-    pillars: [],
-    knock: '',
-    contrib: { financial: { sign: '', reason: '' }, environmental: { sign: '', reason: '' }, societal: { sign: '', reason: '' } },
-    risk: '',
+    attributes: s.troy?.answer.attributes.map((x) => x.name) ?? [],
+    chain: s.narrows?.chain ?? [],
+    resources: s.narrows?.resources ?? [],
   }
 }
 
-function LandingForm({ d }: { d: Direction }) {
-  const record = useGame((s) => s.landings[d.id])
-  const saveLanding = useGame((s) => s.saveLanding)
-  const [a, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding())
-  const task = useGradedTask(`land${d.id}`, record?.grades ?? [])
-  const up = (p: Partial<Landing>) => setA((x) => ({ ...x, ...p }))
-  const setC = (k: keyof Landing['contrib'], p: Partial<{ sign: Sign | ''; reason: string }>) =>
-    setA((x) => ({ ...x, contrib: { ...x.contrib, [k]: { ...x.contrib[k], ...p } } }))
-  const missing = [
-    (wordCount(a.idea) < 4 || wordCount(a.idea) > 25) && '1. Write your idea in 4 to 25 words.',
-    !a.who && '2. Pick who benefits (user, decision-maker, payer, partner or society).',
-    wordCount(a.whoText) < 4 && '2. Say how they benefit (at least 4 words).',
-    a.pillars.length === 0 && '3. Tick at least one pillar element that changes.',
-    wordCount(a.knock) < 3 && '3. Describe the knock-on effect (at least 3 words).',
-    !Object.values(a.contrib).every((c) => c.sign && wordCount(c.reason) >= 2) && '4. Give each contribution a sign and a short reason (2 words or more).',
-  ].filter(Boolean) as string[]
-  const req = { kind: 'landing' as const, directionId: d.id, answer: flatten({ ...a, contrib: Object.entries(a.contrib).map(([k, v]) => `${k} ${v.sign} (${v.reason})`).join('; ') }), extra: a }
-  const toggle = (b: string) => up({ pillars: a.pillars.includes(b) ? a.pillars.filter((x) => x !== b) : [...a.pillars, b] })
-
-  return (
-    <div className="section" id="landing">
-      <h3>Landing: apply direction {d.id} to Troy</h3>
-      <div className="case">{d.prompt}</div>
-      <fieldset disabled={!task.editing} style={{ border: 0, padding: 0, margin: 0 }}>
-        <Field label="1. Your idea" limit={15} value={a.idea} onChange={(v) => up({ idea: v })} placeholder="For [who], we [change] so that [gain]." />
+function StepInput({ step, n, value, onChange }: { step: Step; n: string; value: LandingValue | undefined; onChange: (v: LandingValue) => void }) {
+  const label = (
+    <>
+      {n && <b className="step-n">{n}</b>}
+      {step.label}
+    </>
+  )
+  switch (step.kind) {
+    case 'pick': {
+      const opts = optionsFor(step, stepContext())
+      if (!opts.length) return <Field single label={label} value={String(value ?? '')} onChange={onChange} />
+      return (
         <div className="field">
-          <div className="field-label">2. Who benefits, and how</div>
+          <div className="field-label">{label}</div>
           <div className="checks">
-            {WHO.map((w) => (
-              <button key={w} type="button" className="pick" aria-pressed={a.who === w} onClick={() => up({ who: w })}>
-                {w}
+            {opts.map((o) => (
+              <button key={o} type="button" className="pick" aria-pressed={value === o} onClick={() => onChange(o)}>
+                {o}
               </button>
             ))}
           </div>
-          <Field label="" limit={40} value={a.whoText} onChange={(v) => up({ whoText: v })} placeholder="Name a specific person or group and what they gain." />
         </div>
+      )
+    }
+    case 'text':
+      return <Field single={step.short} label={label} limit={step.short ? undefined : step.max} rows={3} value={String(value ?? '')} onChange={onChange} placeholder={step.placeholder} />
+    case 'slots': {
+      const arr = (value as string[]) ?? step.slots.map(() => '')
+      return (
         <div className="field">
-          <div className="field-label">
-            3. Which pillar shifts <small>tick what changes</small>
-          </div>
-          <div className="checks">
-            {[...P_BOXES, ...A_BOXES].map((b) => (
-              <button key={b} type="button" className="pick" aria-pressed={a.pillars.includes(b)} onClick={() => toggle(b)}>
-                {b}
-              </button>
+          <div className="field-label">{label}</div>
+          <div className={`slots n${step.slots.length}`}>
+            {step.slots.map((sl, j) => (
+              <label key={sl.label} className="slot">
+                <small>{sl.label}</small>
+                <textarea rows={2} value={arr[j] ?? ''} placeholder={sl.placeholder} onChange={(e) => onChange(arr.map((x, k) => (k === j ? e.target.value : x)))} />
+              </label>
             ))}
           </div>
-          <Field
-            label="Knock-on effect on the other pillar"
-            limit={25}
-            value={a.knock}
-            onChange={(v) => up({ knock: v })}
-            placeholder={d.pillar === 'proposition' ? 'What must change in how you build and deliver it?' : 'What changes for the customer because of this?'}
-          />
         </div>
+      )
+    }
+    case 'signs': {
+      const r = (value as Record<string, string>) ?? {}
+      return (
         <div className="field">
           <div className="field-label">
-            4. Contributions <small>+ better, 0 no change, {'−'} worse</small>
+            {label} <small>+ better, 0 no change, {'−'} worse</small>
           </div>
-          {(['financial', 'environmental', 'societal'] as const).map((k) => (
+          {CONTRIBS.map((k) => (
             <div className="contrib-row" key={k}>
               <span style={{ textTransform: 'capitalize' }}>
                 <span className="badge c">C</span> {k}
               </span>
-              <SignToggle label={k} value={a.contrib[k].sign} onChange={(sign) => setC(k, { sign })} />
-              <input type="text" value={a.contrib[k].reason} placeholder="Why? (a few words)" aria-label={`${k} reason`} onChange={(e) => setC(k, { reason: e.target.value })} />
+              <SignToggle label={k} value={r[k] ?? ''} onChange={(sign) => onChange({ ...r, [k]: sign })} />
             </div>
           ))}
         </div>
-        <Field label="5. Riskiest assumption (optional)" limit={20} value={a.risk} onChange={(v) => up({ risk: v })} placeholder="What must be true for this to work? You will test it on Olympus." />
+      )
+    }
+    case 'checks': {
+      const arr = (value as string[]) ?? []
+      return (
+        <div className="field">
+          <div className="field-label">{label}</div>
+          <div className="checks">
+            {step.options.map((o) => (
+              <button key={o} type="button" className="pick" aria-pressed={arr.includes(o)} onClick={() => onChange(arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o])}>
+                {o}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+  }
+}
+
+function IslandWork({ d }: { d: Direction }) {
+  const record = useGame((s) => s.landings[d.id])
+  const saveLanding = useGame((s) => s.saveLanding)
+  const [a, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding(d))
+  const task = useGradedTask(`land${d.id}`, record?.grades ?? [])
+  const missing = missingFor(d, a)
+  const req = { kind: 'landing' as const, directionId: d.id, answer: flattenLanding(d, a), extra: a }
+  return (
+    <div className="section" id="landing">
+      <h3>Apply direction {d.id} to Troy</h3>
+      <fieldset disabled={!task.editing} style={{ border: 0, padding: 0, margin: 0 }}>
+        {d.steps.map((st, i) => (
+          <StepInput key={st.id} step={st} n={d.steps.length > 1 ? `${i + 1}` : ''} value={a[st.id]} onChange={(v) => setA((x) => ({ ...x, [st.id]: v }))} />
+        ))}
       </fieldset>
       <HintBox hints={task.hints} />
       {task.editing && (
@@ -335,11 +358,6 @@ function LandingForm({ d }: { d: Direction }) {
 export function IslandTask({ id }: { id: number }) {
   const d = directionById(id)
   const check = useGame((s) => s.checks[id])
-  const landed = useGame((s) => !!s.landings[id])
-  const open = useGame((s) => s.landingOpen === id)
-  const set = useGame((s) => s.set)
-  const recommended = voyageById(useGame((s) => s.voyageId)).recommended.includes(id)
-  const showLanding = open || landed
   const sea = d.pillar === 'proposition' ? 'Sea of the Value Proposition' : 'Sea of the Value Architecture'
   return (
     <>
@@ -359,24 +377,11 @@ export function IslandTask({ id }: { id: number }) {
           </div>
         </div>
         <Quiz d={d} />
-        {check?.done && !showLanding && (
-          <div className="fork">
-            <button
-              className={`btn ${recommended ? 'primary' : ''}`}
-              onClick={() => {
-                set({ landingOpen: id })
-                audio.click()
-                setTimeout(() => document.getElementById('landing')?.scrollIntoView({ behavior: 'smooth' }), 50)
-              }}
-            >
-              Land here and apply it to Troy (about 2 min, up to 8 laurels)
-            </button>
-            <small className="count">
-              {recommended ? 'Athena recommends landing here for your ship. ' : ''}Land on at least one island in each sea. Or sail on with the button below.
-            </small>
-          </div>
+        {check?.done ? (
+          <IslandWork d={d} />
+        ) : (
+          <p className="count locked-note">Answer the quick check to unlock this island’s {d.steps.length === 1 ? 'question' : `${d.steps.length} questions`} about your business.</p>
         )}
-        {check?.done && showLanding && <LandingForm d={d} />}
       </div>
     </>
   )
@@ -384,8 +389,23 @@ export function IslandTask({ id }: { id: number }) {
 
 // ---------------------------------------------------------------- Narrows
 
-export function NarrowsCard() {
-  const landedP = useGame(useShallow((s) => landedIn(s, 'proposition')))
+const padTo = (xs: string[], n: number) => [...xs, ...Array(Math.max(0, n - xs.length)).fill('')].slice(0, Math.max(n, xs.length))
+
+export function NarrowsTask() {
+  const narrows = useGame((s) => s.narrows)
+  const saveNarrows = useGame((s) => s.saveNarrows)
+  const [a, setA] = useDraft<NarrowsAnswer>('narrows', () => ({
+    chain: padTo(narrows?.chain ?? [], 6),
+    resources: padTo(narrows?.resources ?? [], 3),
+    partners: narrows?.partners ?? '',
+  }))
+  const [editing, setEditing] = useState(!narrows)
+  const [tried, setTried] = useState(false)
+  const filled = (xs: string[]) => xs.filter((x) => x.trim()).length
+  const missing = [
+    filled(a.chain) < 4 && `Name at least 4 steps of the value chain (${filled(a.chain)} so far).`,
+    filled(a.resources) < 2 && `Name at least 2 key resources or competences (${filled(a.resources)} so far).`,
+  ].filter(Boolean) as string[]
   return (
     <>
       <div className="panel-head">
@@ -394,19 +414,88 @@ export function NarrowsCard() {
         </p>
         <h2>The Narrows</h2>
         <p className="lede">
-          You leave the Sea of the Value Proposition (what you offer, to whom, at what price) and enter the Sea of the Value Architecture (how you build and deliver it: value chain, partners, resources).
+          You leave the Sea of the Value Proposition (what you offer, to whom, at what price) for the Sea of the Value Architecture (how you build and deliver it). Before Scylla and Charybdis, chart how Troy is built today: the next seven islands work on these steps and resources.
         </p>
       </div>
       <div className="panel-body">
-        <div className="section">
-          <div className="case">
-            Scylla’s cliff on one side, Charybdis on the other, and the Sirens singing nearby. Odysseus kept to his course. So will you: a strong proposition needs an architecture that can deliver it.
-          </div>
-        </div>
-        {landedP.length === 0 && (
-          <div className="hint">
-            <b>Athena notes:</b> you have not landed in the first sea yet. You will need one landing per sea before Aeolus. You can sail back to any passed island from the voyage ribbon.
-          </div>
+        {editing ? (
+          <>
+            <div className="section">
+              <h3>
+                <span className="badge a">A</span> Troy’s value chain, in 4 to 6 steps
+              </h3>
+              <p className="lede" style={{ marginTop: 0 }}>
+                From raw input to the customer and after: short verb phrases, e.g. “Design”, “Source materials”, “Make”, “Sell”, “Deliver”, “Support”.
+              </p>
+              <ol className="chain-list">
+                {a.chain.map((x, i) => (
+                  <li key={i}>
+                    <input type="text" value={x} placeholder={i < 4 ? 'required' : 'optional'} aria-label={`Value chain step ${i + 1}`} onChange={(e) => setA((v) => ({ ...v, chain: v.chain.map((y, j) => (j === i ? e.target.value : y)) }))} />
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="section">
+              <h3>Key resources and competences</h3>
+              <div className="grid2">
+                {a.resources.map((x, i) => (
+                  <input key={i} type="text" value={x} placeholder={['e.g. brand', 'e.g. a patent or know-how', 'e.g. a network (optional)'][i]} aria-label={`Resource ${i + 1}`} onChange={(e) => setA((v) => ({ ...v, resources: v.resources.map((y, j) => (j === i ? e.target.value : y)) }))} />
+                ))}
+              </div>
+              <Field single label="Key partners today (optional)" value={a.partners} onChange={(v) => setA((x) => ({ ...x, partners: v }))} placeholder="e.g. suppliers, distributors, installers" />
+            </div>
+            <div className="submit-row">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  if (missing.length) {
+                    setTried(true)
+                    audio.wrong()
+                    return
+                  }
+                  saveNarrows({ chain: a.chain.map((x) => x.trim()).filter(Boolean), resources: a.resources.map((x) => x.trim()).filter(Boolean), partners: a.partners.trim() })
+                  setEditing(false)
+                  audio.success()
+                }}
+              >
+                Chart the course
+              </button>
+            </div>
+            {tried && missing.length > 0 && (
+              <div className="hint" role="alert">
+                <ul className="missing">
+                  {missing.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : (
+          narrows && (
+            <div className="section">
+              <h3>
+                <span className="badge a">A</span> Troy’s value chain
+              </h3>
+              <ol className="chain-view">
+                {narrows.chain.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ol>
+              <p className="lede">
+                <b>Resources:</b> {narrows.resources.join(', ')}
+                {narrows.partners ? (
+                  <>
+                    <br />
+                    <b>Partners:</b> {narrows.partners}
+                  </>
+                ) : null}
+              </p>
+              <button className="btn small" onClick={() => setEditing(true)}>
+                Edit the chart
+              </button>
+            </div>
+          )
         )}
       </div>
     </>
@@ -419,16 +508,16 @@ export function AeolusTask() {
   const landings = useGame((s) => s.landings)
   const aeolus = useGame((s) => s.aeolus)
   const saveAeolus = useGame((s) => s.saveAeolus)
-  const sailTo = useGame((s) => s.sailTo)
   const pIds = useGame(useShallow((s) => landedIn(s, 'proposition')))
   const aIds = useGame(useShallow((s) => landedIn(s, 'architecture')))
-  const [a, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: pIds[0] ?? null, a: aIds[0] ?? null, sentence: '' })
+  const [a, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: null, a: null, sentence: '' })
+  const idea = (id: number | null) => (id ? summaryOf(directionById(id), landings[id]?.answer).replace(/\.$/, '') : '')
   const [rolling, setRolling] = useState(false)
   const task = useGradedTask('aeolus', aeolus?.grades ?? [])
   const missingSea = pIds.length === 0 ? 'proposition' : aIds.length === 0 ? 'architecture' : null
 
   const template = (p: number | null, x: number | null) =>
-    p && x ? `Because we ${landings[x]?.answer.idea.replace(/\.$/, '') ?? '[architecture change]'}, we can offer ${landings[p]?.answer.idea.replace(/\.$/, '') ?? '[proposition change]'} to [who], which makes [one contribution] go [+ or −].` : ''
+    p && x ? `Because [architecture change: ${idea(x).slice(0, 60)}], we can offer [proposition change: ${idea(p).slice(0, 60)}] to [who], which makes [one contribution] go [+ or −].` : ''
 
   const choose = (p: number | null, x: number | null) => setA((s) => ({ p, a: x, sentence: !s.sentence || s.sentence === template(s.p, s.a) ? template(p, x) : s.sentence }))
 
@@ -444,9 +533,6 @@ export function AeolusTask() {
   }
 
   if (missingSea) {
-    const s = useGame.getState()
-    const rec = voyageById(s.voyageId).recommended.filter((id) => (missingSea === 'proposition' ? id <= 7 : id >= 8))
-    const target = rec[0] ?? (missingSea === 'proposition' ? 1 : 8)
     return (
       <>
         <div className="panel-head">
@@ -457,12 +543,7 @@ export function AeolusTask() {
         </div>
         <div className="panel-body">
           <div className="hint">
-            <b>Aeolus says:</b> the winds need one idea from each sea. You have not landed in the Sea of the Value {missingSea === 'proposition' ? 'Proposition' : 'Architecture'} yet.
-          </div>
-          <div className="submit-row">
-            <button className="btn primary" onClick={() => sailTo(STOPS.findIndex((x) => x.directionId === target))}>
-              Sail back to island {target}
-            </button>
+            <b>Aeolus says:</b> the winds need your ideas from both seas. Use the voyage ribbon at the top to return to any island you have not finished.
           </div>
         </div>
       </>
@@ -477,7 +558,7 @@ export function AeolusTask() {
   ].filter(Boolean) as string[]
   const req = {
     kind: 'aeolus' as const,
-    answer: `Proposition idea (direction ${a.p}): ${landings[a.p!]?.answer.idea}\nArchitecture idea (direction ${a.a}): ${landings[a.a!]?.answer.idea}\nCombined sentence: ${a.sentence}`,
+    answer: `Proposition idea (direction ${a.p}): ${idea(a.p)}\nArchitecture idea (direction ${a.a}): ${idea(a.a)}\nCombined sentence: ${a.sentence}`,
     extra: a,
   }
   return (
@@ -488,7 +569,7 @@ export function AeolusTask() {
         </p>
         <h2>Aeolus, keeper of the winds</h2>
         <p className="lede">
-          A business model only works when what you promise (value proposition) and how you deliver it (value architecture) hold together. Tie one idea from each sea into one plan, or the winds will blow you off course.
+          A business model only works when what you promise (value proposition) and how you deliver it (value architecture) hold together. Pick the strongest idea from each sea and tie them into one plan, or the winds will blow you off course. Your plan becomes the core of the business model you forge on Lemnos.
         </p>
       </div>
       <div className="panel-body">
@@ -500,7 +581,7 @@ export function AeolusTask() {
             <div className="idea-cards">
               {pIds.map((id) => (
                 <button key={id} className="god" aria-pressed={a.p === id} onClick={() => choose(id, a.a)}>
-                  <b>{id}.</b> {landings[id].answer.idea}
+                  <b>{id}.</b> {idea(id)}
                 </button>
               ))}
             </div>
@@ -512,7 +593,7 @@ export function AeolusTask() {
             <div className="idea-cards">
               {aIds.map((id) => (
                 <button key={id} className="god" aria-pressed={a.a === id} onClick={() => choose(a.p, id)}>
-                  <b>{id}.</b> {landings[id].answer.idea}
+                  <b>{id}.</b> {idea(id)}
                 </button>
               ))}
             </div>
@@ -571,26 +652,25 @@ export const INDICATORS = [
 export function LemnosTask() {
   const troy = useGame((s) => s.troy!.answer)
   const lemnos = useGame((s) => s.lemnos)
-  const landings = useGame((s) => s.landings)
+  const island10 = useGame((s) => s.landings[10]?.answer.contrib) as Record<string, string> | undefined
   const aeolus = useGame((s) => s.aeolus?.answer)
   const saveLemnos = useGame((s) => s.saveLemnos)
   const [a, setA] = useDraft<LemnosAnswer>('lemnos', () => {
     if (lemnos) return lemnos.answer
-    const first = Object.values(landings)[0]?.answer
     return {
       name: '',
       pitch: aeolus?.sentence ?? '',
       curve: troy.attributes.map((x) => x.level),
       zone: '',
       indicators: {
-        revenue: first?.contrib.financial.sign ?? '',
+        revenue: '',
         costs: '',
         capital: '',
-        ghg: first?.contrib.environmental.sign ?? '',
+        ghg: '',
         pollutants: '',
         resources: '',
         employability: '',
-        quality: first?.contrib.societal.sign ?? '',
+        quality: '',
         fairness: '',
       },
       antagonism: '',
@@ -658,6 +738,11 @@ export function LemnosTask() {
             <h3>
               <span className="badge c">C</span> Contributions, nine indicators
             </h3>
+            {island10 && (
+              <p className="count" style={{ marginTop: 0 }}>
+                On island 10 you rated one step change: financial {island10.financial}, environmental {island10.environmental}, societal {island10.societal}. Now rate the whole model.
+              </p>
+            )}
             <table className="ind-table">
               <tbody>
                 {INDICATORS.map((g) => (
@@ -708,11 +793,9 @@ export const GODS = [
 
 export function OlympusTask() {
   const olympus = useGame((s) => s.olympus)
-  const landings = useGame((s) => s.landings)
   const lemnos = useGame((s) => s.lemnos?.answer)
   const saveOlympus = useGame((s) => s.saveOlympus)
-  const risk = Object.values(landings).find((l) => l.answer.risk)?.answer.risk ?? ''
-  const [a, setA] = useDraft<OlympusAnswer>('olympus', () => olympus?.answer ?? { god: '', answer: '', assumption: risk, mvp: '', stake: '' })
+  const [a, setA] = useDraft<OlympusAnswer>('olympus', () => olympus?.answer ?? { god: '', answer: '', assumption: '', mvp: '', stake: '' })
   const task = useGradedTask('olympus', olympus?.grades ?? [])
   const god = GODS.find((g) => g.id === a.god)
   const missing = [
