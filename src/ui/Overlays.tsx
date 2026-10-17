@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { audio } from '../audio/engine'
 import { VOYAGES } from '../content/voyages'
 import { useGame, type ShipStyle } from '../store'
+import { ShipPreview3D } from '../world/ShipPreview'
 import { Athena } from './Athena'
 
 export function Title() {
@@ -171,43 +172,11 @@ export function Intro() {
   )
 }
 
-const SHIPS: { id: ShipStyle; name: string; hull: string; stripe: string; sail: string; mark: string }[] = [
-  { id: 'black', name: 'The Black Ship', hull: '#1d1714', stripe: '#c4562c', sail: '#efe6d4', mark: 'eye' },
-  { id: 'owl', name: 'The Owl of Athena', hull: '#c4562c', stripe: '#1d1714', sail: '#c4562c', mark: 'owl' },
-  { id: 'dolphin', name: 'The Dolphin', hull: '#24577a', stripe: '#d9a23e', sail: '#2f6f9a', mark: 'dolphin' },
+const SHIPS: { id: ShipStyle; name: string; blurb: string }[] = [
+  { id: 'black', name: 'The Black Ship', blurb: 'Homer’s black ships, with the painted eye that watches the sea' },
+  { id: 'owl', name: 'The Owl of Athena', blurb: 'Red-figure hull, and the goddess of wisdom’s owl on the sail' },
+  { id: 'dolphin', name: 'The Dolphin', blurb: 'Aegean blue and gold, with Poseidon’s dolphin leaping on the sail' },
 ]
-
-function ShipPreview({ s }: { s: (typeof SHIPS)[number] }) {
-  return (
-    <svg viewBox="0 0 120 80" width="120" height="80" aria-hidden="true">
-      <path d="M8 66 Q60 60 112 52" stroke="#2f6f9a" strokeWidth="2" fill="none" opacity="0.5" />
-      <polygon points="14,48 22,60 92,60 108,56 96,52 100,46 92,50 24,50" fill={s.hull} />
-      <polygon points="22,50 92,50 91,53 23,53" fill={s.stripe} />
-      <line x1="58" y1="50" x2="58" y2="10" stroke="#5a3c22" strokeWidth="2" />
-      <rect x="40" y="14" width="36" height="30" fill={s.sail} stroke="#1d1714" strokeWidth="1" />
-      {s.id === 'dolphin' && [44, 52, 60, 68].map((x) => <rect key={x} x={x} y="14" width="4" height="30" fill="#efe6d4" />)}
-      {s.mark === 'eye' && (
-        <>
-          <ellipse cx="58" cy="29" rx="11" ry="6" fill="#1d1714" />
-          <circle cx="58" cy="29" r="3" fill="#c4562c" />
-        </>
-      )}
-      {s.mark === 'owl' && (
-        <>
-          <ellipse cx="58" cy="31" rx="7" ry="9" fill="#1d1714" />
-          <circle cx="55.5" cy="28" r="2.2" fill="#d9a23e" />
-          <circle cx="60.5" cy="28" r="2.2" fill="#d9a23e" />
-        </>
-      )}
-      {s.mark === 'dolphin' && (
-        <>
-          <circle cx="58" cy="29" r="10" fill="#efe6d4" />
-          <path d="M50 32 Q56 21 66 26 L68 24 L67 28 Q60 33 54 33 Z" fill="#1d1714" />
-        </>
-      )}
-    </svg>
-  )
-}
 
 export function Setup() {
   const s = useGame()
@@ -244,8 +213,9 @@ export function Setup() {
           <div className="ship-styles">
             {SHIPS.map((x) => (
               <button key={x.id} type="button" className="ship-style" aria-pressed={ship === x.id} onClick={() => (setShip(x.id), audio.click())}>
-                <ShipPreview s={x} />
+                <ShipPreview3D style={x.id} active={ship === x.id} />
                 <span>{x.name}</span>
+                <small>{x.blurb}</small>
               </button>
             ))}
           </div>

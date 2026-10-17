@@ -84,7 +84,8 @@ export function useGradedTask(key: string, grades: Grade[]) {
     hints,
     hintBusy,
     hintsLeft: 2 - used,
-    canRevise: grades.length === 1,
+    // one revision; unlimited rewrites after a 0, which blocks the voyage until fixed
+    canRevise: grades.length === 1 || (grades.length > 0 && grades[grades.length - 1].total === 0),
     attempt: grades.length,
     last: grades[grades.length - 1] ?? null,
   }

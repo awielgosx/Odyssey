@@ -164,7 +164,7 @@ export function IthacaEnd() {
         <div className="section">
           <h3>Your assignment, ready to submit</h3>
           <p className="lede" style={{ marginTop: 0 }}>
-            Your answers laid out like the course’s business model description: title and tagline, context, innovation and results, value curve, value architecture and contributions, with an appendix of all fourteen directions. Choose a professional or a Greek style, edit any text, then save it as a PDF.
+            Your answers laid out like the course’s business model description: title and tagline, context, innovation and results, value curve, value architecture and contributions, with an appendix of all fourteen directions. Choose the Contemporary (Greek) or Scholar (clean) style, add your full names and group, edit any text, then save it as a PDF.
           </p>
           <div className="submit-row">
             <button className="btn primary" disabled={!complete} onClick={() => setExporting(true)}>

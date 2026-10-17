@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { demoDrafts } from './content/demos'
 import type { Landing, NarrowsAnswer, Sign } from './content/landing'
 import { voyageById, type Attribute } from './content/voyages'
 import { STOPS } from './world/layout'
@@ -57,7 +58,12 @@ export interface OlympusAnswer {
 export interface AeolusAnswer {
   p: number | null
   a: number | null
-  sentence: string
+  promise?: string // the value-proposition change, prefilled from the chosen island
+  enabler?: string // the value-architecture change, prefilled from the chosen island
+  link?: string // why the second makes the first possible: the heart of the exercise
+  who?: string
+  gain?: string // the contribution indicator that improves most
+  sentence: string // assembled from the parts above
 }
 
 interface Attempts<T> {
@@ -96,6 +102,7 @@ interface GameState {
   hints: Record<string, number>
   eggs: string[]
   drafts: Record<string, unknown>
+  celebrated: boolean
   toast: { text: string; id: number } | null
   // actions
   set: (p: Partial<GameState>) => void
@@ -155,6 +162,7 @@ const fresh = {
   hints: {},
   eggs: [] as string[],
   drafts: {} as Record<string, unknown>,
+  celebrated: false,
   toast: null,
 }
 
@@ -198,6 +206,8 @@ export const useGame = create<GameState>()(
             grades: [],
           },
           narrows: v.chain ? { chain: [...v.chain], resources: [...(v.resources ?? [])], partners: v.partners ?? '' } : null,
+          // demo ships come with every answer drafted, ready to submit live in class
+          drafts: demoDrafts(v),
         })
       },
       sailTo: (index) => {
@@ -269,21 +279,24 @@ export const useGame = create<GameState>()(
 
 export const bestGrade = (a: { grades: Grade[] } | null | undefined) => (a && a.grades.length ? a.grades[a.grades.length - 1] : null)
 
+// A review of 0 is a fail: the player rewrites before sailing on.
+export const passed = (a: { grades: Grade[] } | null | undefined) => (bestGrade(a)?.total ?? 0) > 0
+
 export function stopComplete(s: GameState, index: number): boolean {
   const stop = STOPS[index]
   switch (stop.kind) {
     case 'troy':
-      return !!bestGrade(s.troy)
+      return passed(s.troy)
     case 'island':
-      return !!s.checks[stop.directionId!]?.done && !!bestGrade(s.landings[stop.directionId!])
+      return !!s.checks[stop.directionId!]?.done && passed(s.landings[stop.directionId!])
     case 'narrows':
       return !!s.narrows
     case 'aeolus':
-      return !!bestGrade(s.aeolus)
+      return passed(s.aeolus)
     case 'lemnos':
-      return !!bestGrade(s.lemnos)
+      return passed(s.lemnos)
     case 'olympus':
-      return !!bestGrade(s.olympus)
+      return passed(s.olympus)
     case 'ithaca':
       return true
   }
@@ -315,8 +328,9 @@ export interface FinalGrade {
   polytropos: boolean
 }
 
-// Quick checks: 1 point right first time, 0.4 when found on a later try
-export const checkPoints = (s: Pick<GameState, 'checks'>) => Object.values(s.checks).reduce((m, c) => m + (c.done ? (c.firstTry ? 1 : 0.4) : 0), 0)
+// Quick checks: 1 point right first time, 0.4 on the second try, nothing after that
+export const checkValue = (c: CheckState | undefined) => (c?.done ? (c.wrong.length === 0 ? 1 : c.wrong.length === 1 ? 0.4 : 0) : 0)
+export const checkPoints = (s: Pick<GameState, 'checks'>) => Object.values(s.checks).reduce((m, c) => m + checkValue(c), 0)
 
 export function finalGrade(s: GameState): FinalGrade {
   const firstTry = Object.values(s.checks).filter((c) => c.firstTry).length

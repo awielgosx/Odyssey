@@ -13,6 +13,11 @@ import { GODS, INDICATORS, ZONES } from './Tasks'
 export type DocStyle = 'pro' | 'greek'
 
 const strip = (s?: string) => (s ?? '').trim().replace(/\s+/g, ' ')
+// lower-case a leading capital mid-sentence ("Truck drivers" -> "truck drivers"), but keep acronyms and names like "BMW"
+const lower = (s?: string) => {
+  const t = strip(s)
+  return /^[A-Z][a-z]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t
+}
 const sentence = (s?: string) => {
   const t = strip(s)
   return t && !/[.!?]$/.test(t) ? `${t}.` : t
@@ -43,7 +48,7 @@ function gather() {
     authors: [s.captain, ...(s.crew ?? [])].filter(Boolean).join(', '),
     business: v.id === 'own' ? '' : v.title,
     context: [
-      t && sentence(`Today the industry offers ${strip(t.offer).replace(/^./, (c) => c.toLowerCase())}, used by ${strip(t.user)}, chosen by ${strip(t.decider)} and paid for by ${strip(t.payer)} (${strip(t.price)})`),
+      t && sentence(`Today the industry offers ${strip(t.offer).replace(/^./, (c) => c.toLowerCase())}, used by ${lower(t.user)}, chosen by ${lower(t.decider)} and paid for by ${lower(t.payer)} (${lower(t.price)})`),
       t?.frustration && sentence(`Customers live with a frustration: ${strip(t.frustration).replace(/^./, (c) => c.toLowerCase())}`),
       t?.orthodoxy && sentence(`Every incumbent assumes that ${strip(t.orthodoxy).replace(/^./, (c) => c.toLowerCase())}`),
       t?.trend && sentence(`Meanwhile, ${strip(t.trend).replace(/^./, (c) => c.toLowerCase())} threatens this model`),
@@ -86,7 +91,7 @@ function Curve({ doc }: { doc: Doc }) {
   const { names, before, after } = doc.curve
   const W = 520
   const H = 300
-  const padL = 46
+  const padL = 76
   const padR = 20
   const padT = 20
   const padB = 92
@@ -150,7 +155,7 @@ function SignBoxes({ v }: { v: string }) {
   )
 }
 
-const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix }: { doc: Doc; appendix: boolean }) {
+const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, group }: { doc: Doc; appendix: boolean; authors: string; group: string }) {
   const { s, v, g } = doc
   return (
     <>
@@ -164,8 +169,9 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix }: { doc: Doc;
               {doc.tagline}
             </p>
           )}
-          <p className="doc-meta" contentEditable suppressContentEditableWarning>
-            {doc.authors}
+          <p className="doc-meta">
+            {authors || doc.authors}
+            {group ? ` · Group ${group}` : ''}
             {doc.business ? ` · Demo case: ${doc.business}` : ''} · Odyssey 3.14 business model description · {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </header>
@@ -315,7 +321,12 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix }: { doc: Doc;
 })
 
 export function ExportDialog({ onClose }: { onClose: () => void }) {
-  const [style, setStyle] = useState<DocStyle>('pro')
+  const [style, setStyle] = useState<DocStyle>('greek')
+  const [authors, setAuthors] = useState(() => {
+    const st = useGame.getState()
+    return [st.captain, ...(st.crew ?? [])].filter(Boolean).join(', ')
+  })
+  const [group, setGroup] = useState('')
   const [appendix, setAppendix] = useState(true)
   const [doc] = useState(gather)
   const [chars, setChars] = useState(0)
@@ -345,13 +356,21 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       <div className="export-bar no-print">
         <b>Your assignment</b>
         <span className="seg" role="group" aria-label="Document style">
-          <button aria-pressed={style === 'pro'} onClick={() => setStyle('pro')}>
-            Professional
+          <button aria-pressed={style === 'greek'} onClick={() => setStyle('greek')} title="Parchment, meander borders and Greek lettering, like the game">
+            Contemporary
           </button>
-          <button aria-pressed={style === 'greek'} onClick={() => setStyle('greek')}>
-            Greek
+          <button aria-pressed={style === 'pro'} onClick={() => setStyle('pro')} title="Clean layout modelled on the course’s book examples">
+            Scholar
           </button>
         </span>
+        <label className="bar-field">
+          Full names
+          <input type="text" value={authors} placeholder="First and last name of every author" onChange={(e) => setAuthors(e.target.value)} />
+        </label>
+        <label className="bar-field small">
+          Group <small>(optional)</small>
+          <input type="text" value={group} placeholder="e.g. 7" onChange={(e) => setGroup(e.target.value)} />
+        </label>
         <label className="chk">
           <input type="checkbox" checked={appendix} onChange={(e) => setAppendix(e.target.checked)} /> Appendix with all fourteen directions
         </label>
@@ -369,7 +388,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         <small className="hint-line">Click any text in the document to edit it before saving. In the print window, choose “Save as PDF”.</small>
       </div>
       <div className="export-pages" ref={ref} onInput={count}>
-        <AssignmentDoc doc={doc} appendix={appendix} />
+        <AssignmentDoc doc={doc} appendix={appendix} authors={authors} group={group} />
       </div>
     </div>,
     document.body,

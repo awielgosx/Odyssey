@@ -90,7 +90,7 @@ export function TopRight() {
         />
       </span>
       <button className="chip" aria-pressed={s.chart} onClick={() => s.set({ chart: !s.chart })}>
-        {s.chart ? 'Back to ship' : 'Chart'}
+        {s.chart ? 'Back to ship' : 'Full map'}
       </button>
       <button className="chip" aria-expanded={menu} onClick={() => setMenu(!menu)}>
         Menu
@@ -121,66 +121,94 @@ export function TopRight() {
   )
 }
 
-// One line telling the player what to do right now.
+// Athena, always present: what to do now, a coaching tip for this stop, and her reaction to the
+// latest review. She can be folded away to free the map.
 export function Coach() {
   const s = useGame()
+  const [folded, setFolded] = useState(false)
   const stop = STOPS[s.stopIndex]
+  const g = (a: { grades: { total: number; max: number; feedback?: string }[] } | null | undefined) => (a?.grades.length ? a.grades[a.grades.length - 1] : null)
+  const rec = stop.kind === 'troy' ? s.troy : stop.kind === 'island' ? s.landings[stop.directionId!] : stop.kind === 'aeolus' ? s.aeolus : stop.kind === 'lemnos' ? s.lemnos : stop.kind === 'olympus' ? s.olympus : null
+  const last = g(rec)
+  const ratio = last ? last.total / last.max : null
+  let title = 'Athena'
   let line = ''
-  if (s.sailing) line = `Sailing to ${stop.label}${stop.directionId ? `, direction ${stop.directionId}` : ''}.`
-  else
+  let tip = ''
+  let mood: Mood = 'neutral'
+  if (s.sailing) {
+    const dir = stop.directionId ? directionById(stop.directionId) : null
+    line = dir ? `Next: island ${dir.id}, ${dir.name.toLowerCase()}.` : `Sailing to ${stop.label}.`
+    tip = dir ? dir.tip : ''
+  } else
     switch (stop.kind) {
       case 'troy':
-        line = s.troy?.grades.length ? 'Good. Now set sail for island 1, the first of fourteen directions.' : 'Describe Troy, your business today, then submit it. I will ask questions, never give answers.'
+        line = last ? 'Troy is charted. Set sail for island 1, the first of fourteen ways to reinvent it.' : 'Describe Troy, the business as it works today. No new ideas yet: this is the benchmark.'
+        tip = last ? '' : 'The sharper your frustration and orthodoxy, the better every island will go.'
         break
       case 'island': {
-        const id = stop.directionId!
-        const c = s.checks[id]
-        const l = s.landings[id]
-        if (!c?.done) line = id === 1 ? 'Each island: a real case, one question that tests the logic, then two short questions about your business. Start with the case.' : 'Read the case, then answer the quick check. It tests the logic, not the wording.'
-        else if (!l?.grades.length) line = id === 8 ? 'New sea. Use the value chain you charted: pick a step, then be specific.' : 'Now apply it to Troy. Short and concrete beats long and vague.'
-        else line = 'Reviewed. Revise once if you like, then sail on.'
+        const dir = directionById(stop.directionId!)
+        const c = s.checks[dir.id]
+        title = `Athena · island ${dir.id}`
+        if (!c?.done) {
+          line = dir.id === 1 ? 'Each island: a real case, a question that tests the logic, then one or two questions about your business.' : `${dir.name}. Read the case, then answer the quick check: it tests the logic, not the wording.`
+          tip = c?.wrong.length ? 'Not that one. Think about the mechanism of the direction, not the words of the case.' : ''
+          if (c?.wrong.length) mood = 'stern'
+        } else if (!last) {
+          line = dir.id === 8 ? 'New sea. Use the value chain you charted: pick a step, then be specific.' : 'Now apply it to your business. Short and concrete beats long and vague.'
+          tip = dir.tip
+        }
         break
       }
       case 'narrows':
-        line = s.narrows ? 'Course charted. Next: how you build and deliver your offer.' : 'Halfway. Chart how Troy is built and delivered before you cross.'
+        line = s.narrows ? 'Course charted. The next seven islands will change these steps and resources.' : 'Halfway. Before you cross, chart how Troy is built and delivered: the second sea works on it.'
+        tip = s.narrows ? '' : 'Use the quick-add chips, then rename them to fit your business.'
         break
       case 'aeolus':
-        line = s.aeolus?.grades.length ? 'Your plan holds. On to the forge.' : 'Pick one idea from each sea and tie them together in one sentence.'
+        line = last ? 'Your plan holds. On to the forge.' : 'Pick the promise and what makes it possible, then explain the link between them.'
+        tip = last ? '' : 'The best pair is not always your two highest scores: it is the pair where one makes the other possible.'
         break
       case 'lemnos':
-        line = s.lemnos?.grades.length ? 'Forged. The gods are waiting.' : 'Turn your ideas into one business model. Lower at least one attribute.'
+        line = last ? 'Forged. The gods are waiting.' : 'Turn your plan into one business model, starting with the value curve.'
+        tip = last ? '' : 'Lower at least one attribute on purpose: that trade-off is what makes a model sharp.'
         break
       case 'olympus':
-        line = s.olympus?.grades.length ? 'The gods let you sail home.' : 'Answer one god, then design the cheapest test.'
+        line = last ? 'The gods let you sail home.' : 'Answer one god, then design the cheapest test that could prove you wrong.'
+        tip = last ? '' : 'A good test can fail. Set the success signal before you run it.'
         break
       case 'ithaca':
-        line = 'Welcome home, captain. Download your log.'
+        line = 'Welcome home, captain. Export your assignment as a PDF and download your log.'
+        mood = 'pleased'
         break
     }
-  // Athena reacts to the latest review at this stop: stern when it is weak, pleased when it is strong
-  const g = (a: { grades: { total: number; max: number }[] } | null | undefined) => (a?.grades.length ? a.grades[a.grades.length - 1] : null)
-  const last =
-    stop.kind === 'troy' ? g(s.troy) : stop.kind === 'island' ? g(s.landings[stop.directionId!]) : stop.kind === 'aeolus' ? g(s.aeolus) : stop.kind === 'lemnos' ? g(s.lemnos) : stop.kind === 'olympus' ? g(s.olympus) : null
-  const ratio = last ? last.total / last.max : null
-  const wrongQuiz = stop.kind === 'island' && !s.checks[stop.directionId!]?.done && (s.checks[stop.directionId!]?.wrong.length ?? 0) > 0
-  let mood: Mood = 'neutral'
-  if (!s.sailing && ratio !== null && ratio < 0.5) {
-    mood = 'stern'
-    const revised = (last && (stop.kind === 'troy' ? s.troy : stop.kind === 'island' ? s.landings[stop.directionId!] : stop.kind === 'aeolus' ? s.aeolus : stop.kind === 'lemnos' ? s.lemnos : s.olympus)?.grades.length === 2) ?? false
-    line = revised
-      ? 'Still thin. Remember why: vague ideas die in front of real customers. Take my question with you and sail on.'
-      : 'This would not survive the council. Answer my question in the review, then revise. Be concrete: who, what, how much.'
-  } else if (!s.sailing && ratio !== null && ratio >= 0.75) mood = 'pleased'
-  else if (wrongQuiz) {
-    mood = 'stern'
-    line = 'Read the case again, slowly. The answer is in it.'
+  if (!s.sailing && last) {
+    const fb = (last as { feedback?: string }).feedback?.split(/(?<=[.!?])\s/)[0] ?? ''
+    if (last.total === 0) {
+      mood = 'stern'
+      line = 'Zero laurels. This would not survive a single customer: rewrite it before we sail on.'
+    } else if (ratio !== null && ratio < 0.5) {
+      mood = 'stern'
+      line = `${last.total}/${last.max}. ${fb || 'This would not survive the council.'} Revise it, or take my question with you.`
+    } else if (ratio !== null && ratio >= 0.75) {
+      mood = 'pleased'
+      line = `${last.total}/${last.max}. ${fb || 'Well argued.'} Sail on when you are ready.`
+    } else line = `${last.total}/${last.max}. ${fb || 'Solid, with room to sharpen.'} Revise once if you like, then sail on.`
   }
+  if (folded)
+    return (
+      <button className="coach-fold" onClick={() => setFolded(false)} aria-label="Show Athena">
+        <Athena mood={mood} size={64} />
+      </button>
+    )
   return (
     <div className="coach" aria-live="polite">
-      <Athena mood={mood} size={92} />
-      <div className="bubble parchment">
-        <b>Athena</b>
-        {line}
+      <Athena mood={mood} size={124} />
+      <div className="bubble parchment" key={line}>
+        <button className="coach-hide" aria-label="Fold Athena away" onClick={() => setFolded(true)}>
+          {'–'}
+        </button>
+        <b>{title}</b>
+        <span>{line}</span>
+        {tip && <span className="coach-tip">{tip}</span>}
       </div>
     </div>
   )
@@ -207,8 +235,12 @@ export function Nav() {
           onClick={() => {
             if (!canNext) {
               const stop = STOPS[s.stopIndex]
+              const rec = stop.kind === 'troy' ? s.troy : stop.kind === 'island' ? s.landings[stop.directionId!] : stop.kind === 'aeolus' ? s.aeolus : stop.kind === 'lemnos' ? s.lemnos : stop.kind === 'olympus' ? s.olympus : null
+              const zero = !!rec?.grades.length && rec.grades[rec.grades.length - 1].total === 0
               s.say(
-                stop.kind === 'troy'
+                zero
+                  ? 'Athena gave this zero laurels. Rewrite your answer and resubmit it before you sail on.'
+                  : stop.kind === 'troy'
                   ? 'First submit Troy to Athena: the button is at the bottom of the panel on the right.'
                   : stop.kind === 'island'
                     ? s.checks[stop.directionId!]?.done

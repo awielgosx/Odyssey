@@ -1,171 +1,180 @@
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import * as THREE from 'three'
 import { allCoasts, MAP_BOUNDS, pointInPoly } from './layout'
 import { PAL } from './palette'
 
-// A signed distance field to every coastline, baked once on the CPU.
-// The shader uses it for shallow water and foam that hug the real shapes.
-const SDF = { minX: MAP_BOUNDS.minX - 20, minZ: MAP_BOUNDS.minZ - 20, sizeX: MAP_BOUNDS.maxX - MAP_BOUNDS.minX + 40, sizeZ: MAP_BOUNDS.maxZ - MAP_BOUNDS.minZ + 40, res: 1.25 }
-const D_MIN = -4
-const D_MAX = 14
+// The sea, built like every other object in the scene: a flat-shaded MeshStandardMaterial lit by
+// the same sun, fogged by the same fog. Only the vertex positions move (a few sine waves). No
+// custom fragment maths, so no NaN can turn facets black on any GPU, with or without the
+// post-processing used in cinematic mode.
 
-function bakeShoreField() {
-  const w = Math.ceil(SDF.sizeX / SDF.res)
-  const h = Math.ceil(SDF.sizeZ / SDF.res)
-  const dist = new Float32Array(w * h).fill(D_MAX)
+const SIZE = { w: 620, h: 360, sx: 160, sz: 92 }
+
+// Distance from each point to the nearest coastline (negative inside an island), on a coarse grid.
+function shoreDistance() {
+  const res = 2
+  const minX = MAP_BOUNDS.minX - 20
+  const minZ = MAP_BOUNDS.minZ - 20
+  const w = Math.ceil((MAP_BOUNDS.maxX - MAP_BOUNDS.minX + 40) / res)
+  const h = Math.ceil((MAP_BOUNDS.maxZ - MAP_BOUNDS.minZ + 40) / res)
+  const dist = new Float32Array(w * h).fill(40)
   const p = new THREE.Vector2()
   for (const c of allCoasts()) {
-    const reach = c.poly.reduce((m, q) => Math.max(m, q.length()), 0) + D_MAX
-    const i0 = Math.max(0, Math.floor((c.x - reach - SDF.minX) / SDF.res))
-    const i1 = Math.min(w - 1, Math.ceil((c.x + reach - SDF.minX) / SDF.res))
-    const j0 = Math.max(0, Math.floor((c.z - reach - SDF.minZ) / SDF.res))
-    const j1 = Math.min(h - 1, Math.ceil((c.z + reach - SDF.minZ) / SDF.res))
-    const poly = c.poly
-    for (let j = j0; j <= j1; j++) {
+    const reach = c.poly.reduce((m, q) => Math.max(m, q.length()), 0) + 16
+    const i0 = Math.max(0, Math.floor((c.x - reach - minX) / res))
+    const i1 = Math.min(w - 1, Math.ceil((c.x + reach - minX) / res))
+    const j0 = Math.max(0, Math.floor((c.z - reach - minZ) / res))
+    const j1 = Math.min(h - 1, Math.ceil((c.z + reach - minZ) / res))
+    for (let j = j0; j <= j1; j++)
       for (let i = i0; i <= i1; i++) {
-        p.set(SDF.minX + i * SDF.res - c.x, SDF.minZ + j * SDF.res - c.z)
+        p.set(minX + i * res - c.x, minZ + j * res - c.z)
         let best = Infinity
-        for (let k = 0; k < poly.length; k++) {
-          const a = poly[k]
-          const b = poly[(k + 1) % poly.length]
+        for (let k = 0; k < c.poly.length; k++) {
+          const a = c.poly[k]
+          const b = c.poly[(k + 1) % c.poly.length]
           const abx = b.x - a.x
           const aby = b.y - a.y
-          const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / (abx * abx + aby * aby)))
+          const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / (abx * abx + aby * aby || 1)))
           const dx = a.x + abx * t - p.x
           const dy = a.y + aby * t - p.y
           best = Math.min(best, dx * dx + dy * dy)
         }
         let d = Math.sqrt(best)
-        if (pointInPoly(p, poly)) d = -d
-        const idx = j * w + i
-        dist[idx] = Math.min(dist[idx], d)
+        if (pointInPoly(p, c.poly)) d = -d
+        dist[j * w + i] = Math.min(dist[j * w + i], d)
+      }
+  }
+  return (x: number, z: number) => {
+    const fi = (x - minX) / res
+    const fj = (z - minZ) / res
+    const i = Math.floor(fi)
+    const j = Math.floor(fj)
+    if (i < 0 || j < 0 || i >= w - 1 || j >= h - 1) return 40
+    const tx = fi - i
+    const tz = fj - j
+    const d00 = dist[j * w + i]
+    const d10 = dist[j * w + i + 1]
+    const d01 = dist[(j + 1) * w + i]
+    const d11 = dist[(j + 1) * w + i + 1]
+    return (d00 * (1 - tx) + d10 * tx) * (1 - tz) + (d01 * (1 - tx) + d11 * tx) * tz
+  }
+}
+
+const smooth = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+  return t * t * (3 - 2 * t)
+}
+
+function useSea() {
+  return useMemo(() => {
+    const g = new THREE.PlaneGeometry(SIZE.w, SIZE.h, SIZE.sx, SIZE.sz)
+    g.rotateX(-Math.PI / 2)
+    const pos = g.attributes.position
+    const d = shoreDistance()
+    const colors = new Float32Array(pos.count * 3)
+    const calm = new Float32Array(pos.count)
+    const deep = new THREE.Color(PAL.aegeanDeep)
+    const mid = new THREE.Color(PAL.aegeanMid)
+    const shallow = new THREE.Color(PAL.aegeanShallow)
+    const foam = new THREE.Color(PAL.foam)
+    const c = new THREE.Color()
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i)
+      const z = pos.getZ(i)
+      const dist = d(x, z)
+      // gentle mottling between deep and mid blue, then turquoise shallows and a pale rim at the shore
+      const n = 0.5 + 0.5 * Math.sin(x * 0.11 + Math.sin(z * 0.07) * 2.0) * Math.cos(z * 0.09 - x * 0.03)
+      c.copy(deep).lerp(mid, 0.35 + n * 0.45)
+      c.lerp(shallow, (1 - smooth(0, 11, dist)) * 0.85)
+      c.lerp(foam, (1 - smooth(-1, 2.2, dist)) * 0.7)
+      colors.set([c.r, c.g, c.b], i * 3)
+      calm[i] = 1 - smooth(0, 6, dist) // 1 at the coast, 0 out at sea
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    g.setAttribute('aCalm', new THREE.BufferAttribute(calm, 1))
+    return g
+  }, [])
+}
+
+// A pale ring of surf hugging each coastline, breathing slowly.
+function useSurf() {
+  return useMemo(() => {
+    const verts: number[] = []
+    const idx: number[] = []
+    for (const coast of allCoasts()) {
+      const poly = coast.poly
+      const n = poly.length
+      let area = 0
+      for (let k = 0; k < n; k++) area += poly[k].x * poly[(k + 1) % n].y - poly[(k + 1) % n].x * poly[k].y
+      const s = area > 0 ? 1 : -1
+      const base = verts.length / 3
+      for (let k = 0; k < n; k++) {
+        const prev = poly[(k - 1 + n) % n]
+        const cur = poly[k]
+        const next = poly[(k + 1) % n]
+        // outward normal: average of the two edge normals
+        const e1 = new THREE.Vector2(cur.x - prev.x, cur.y - prev.y).normalize()
+        const e2 = new THREE.Vector2(next.x - cur.x, next.y - cur.y).normalize()
+        const nx = (e1.y + e2.y) * s
+        const ny = -(e1.x + e2.x) * s
+        const len = Math.hypot(nx, ny) || 1
+        const ox = nx / len
+        const oy = ny / len
+        verts.push(coast.x + cur.x + ox * 0.1, 0, coast.z + cur.y + oy * 0.1)
+        verts.push(coast.x + cur.x + ox * 1.5, 0, coast.z + cur.y + oy * 1.5)
+      }
+      for (let k = 0; k < n; k++) {
+        const a = base + k * 2
+        const b = base + ((k + 1) % n) * 2
+        idx.push(a, a + 1, b, b, a + 1, b + 1)
       }
     }
-  }
-  const data = new Uint8Array(w * h)
-  for (let i = 0; i < data.length; i++) data[i] = Math.round(((Math.max(D_MIN, Math.min(D_MAX, dist[i])) - D_MIN) / (D_MAX - D_MIN)) * 255)
-  const tex = new THREE.DataTexture(data, w, h, THREE.RedFormat, THREE.UnsignedByteType)
-  tex.magFilter = THREE.LinearFilter
-  tex.minFilter = THREE.LinearFilter
-  tex.needsUpdate = true
-  return tex
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+    g.setIndex(idx)
+    return g
+  }, [])
 }
 
-const vert = /* glsl */ `
+const time = { value: 0 }
+
+export function Ocean() {
+  const sea = useSea()
+  const surf = useSurf()
+  const seaMat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.58, metalness: 0 })
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = time
+      sh.vertexShader = sh.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
 uniform float uTime;
-varying vec3 vWorld;
-float wave(vec2 p, vec2 dir, float freq, float speed, float amp) {
-  return sin(dot(p, dir) * freq + uTime * speed) * amp;
-}
-void main() {
-  vec4 world = modelMatrix * vec4(position, 1.0);
-  vec2 p = world.xz;
-  float h = wave(p, normalize(vec2(1.0, 0.3)), 0.32, 1.1, 0.22)
-          + wave(p, normalize(vec2(-0.4, 1.0)), 0.55, 1.6, 0.12)
-          + wave(p, normalize(vec2(0.8, -0.7)), 0.9, 2.3, 0.06);
-  world.y += h;
-  vWorld = world.xyz;
-  gl_Position = projectionMatrix * viewMatrix * world;
-}
-`
-
-const frag = /* glsl */ `
-uniform vec3 uDeep;
-uniform vec3 uMid;
-uniform vec3 uShallow;
-uniform vec3 uFoam;
-uniform vec3 uSky;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-uniform float uTime;
-uniform sampler2D uShore;
-uniform vec4 uShoreRect; // minX, minZ, sizeX, sizeZ
-uniform vec2 uShoreRange;
-varying vec3 vWorld;
-
-void main() {
-  // faceted normal: the low-poly look. Guard against degenerate derivatives,
-  // which produce NaN far away and spread as black blobs through bloom.
-  vec3 c = cross(dFdx(vWorld), dFdy(vWorld));
-  float cl = length(c);
-  vec3 n = cl > 1e-8 ? c / cl : vec3(0.0, 1.0, 0.0);
-  if (n.y < 0.0) n = -n;
-  vec3 viewDir = normalize(cameraPosition - vWorld);
-  float dist = length(cameraPosition - vWorld);
-
-  vec2 suv = (vWorld.xz - uShoreRect.xy) / uShoreRect.zw;
-  float shore = uShoreRange.y;
-  if (suv.x > 0.0 && suv.x < 1.0 && suv.y > 0.0 && suv.y < 1.0) {
-    shore = mix(uShoreRange.x, uShoreRange.y, texture2D(uShore, suv).r);
-  }
-
-  float shallow = 1.0 - smoothstep(0.0, 8.0, shore);
-  float hm = mix(smoothstep(-0.2, 0.25, vWorld.y), 0.45, smoothstep(70.0, 200.0, dist));
-  vec3 base = mix(uDeep, uMid, hm);
-  base = mix(base, uShallow, shallow * 0.85);
-
-  float diff = max(dot(n, uSunDir), 0.0);
-  float facet = mix(0.35, 0.05, smoothstep(30.0, 130.0, dist));
-  vec3 col = base * (0.86 + facet * (diff - 0.5) * 2.0);
-
-  vec3 sn = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.88));
-  float fres = pow(1.0 - clamp(dot(sn, viewDir), 0.0, 1.0), 5.0);
-  col = mix(col, uSky, fres * 0.3 * (1.0 - smoothstep(120.0, 240.0, cameraPosition.y)));
-  vec3 h = normalize(uSunDir + viewDir);
-  float spec = pow(max(dot(sn, h), 0.0), 160.0);
-  col += uSunColor * spec * 0.7;
-
-  // smoothstep needs edge0 < edge1 (reversed edges are undefined and give NaN on Apple GPUs)
-  float ring = (1.0 - smoothstep(0.0, 1.2, shore)) + (sin(shore * 3.2 - uTime * 2.0) * 0.5 + 0.5) * (1.0 - smoothstep(0.5, 3.2, shore)) * 0.45;
-  col = mix(col, uFoam, clamp(ring, 0.0, 1.0) * 0.85);
-
-  float fog = clamp((dist - uFogNear) / max(uFogFar - uFogNear, 1.0), 0.0, 1.0);
-  fog = fog * fog * (3.0 - 2.0 * fog);
-  col = mix(col, uFogColor, fog);
-  col = clamp(col, 0.0, 4.0);
-  // last line of defence: a NaN here would be smeared into a black blob by Bloom
-  if (any(isnan(col)) || any(isinf(col))) col = mix(uMid, uFogColor, fog);
-  gl_FragColor = vec4(col, 1.0);
-  #include <colorspace_fragment>
-}
-`
-
-export function Ocean({ sunDir, fogColor, fog }: { sunDir: THREE.Vector3; fogColor: string; fog: { near: number; far: number } }) {
-  const mat = useRef<THREE.ShaderMaterial>(null)
-  const shore = useMemo(() => bakeShoreField(), [])
-  const uniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uDeep: { value: new THREE.Color(PAL.aegeanDeep) },
-      uMid: { value: new THREE.Color(PAL.aegeanMid) },
-      uShallow: { value: new THREE.Color(PAL.aegeanShallow) },
-      uFoam: { value: new THREE.Color(PAL.foam) },
-      uSky: { value: new THREE.Color(PAL.sky) },
-      uSunDir: { value: sunDir.clone().normalize() },
-      uSunColor: { value: new THREE.Color(PAL.sun) },
-      uFogColor: { value: new THREE.Color(fogColor) },
-      uFogNear: { value: fog.near },
-      uFogFar: { value: fog.far },
-      uShore: { value: shore },
-      uShoreRect: { value: new THREE.Vector4(SDF.minX, SDF.minZ, SDF.sizeX, SDF.sizeZ) },
-      uShoreRange: { value: new THREE.Vector2(D_MIN, D_MAX) },
-    }),
-    [sunDir, fogColor, fog, shore],
-  )
+attribute float aCalm;
+float wave(vec2 p, vec2 dir, float freq, float speed, float amp) { return sin(dot(p, dir) * freq + uTime * speed) * amp; }`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vec2 wp = position.xz;
+float hgt = wave(wp, vec2(0.958, 0.287), 0.32, 1.1, 0.24)
+          + wave(wp, vec2(-0.371, 0.928), 0.55, 1.6, 0.13)
+          + wave(wp, vec2(0.753, -0.659), 0.9, 2.3, 0.06);
+transformed.y += hgt * (1.0 - 0.75 * aCalm);`,
+        )
+    }
+    return m
+  }, [])
+  const surfMat = useMemo(() => new THREE.MeshBasicMaterial({ color: PAL.foam, transparent: true, opacity: 0.6, depthWrite: false }), [])
   useFrame((_, dt) => {
-    if (!mat.current) return
-    mat.current.uniforms.uTime.value += dt
-    mat.current.uniforms.uFogNear.value = fog.near
-    mat.current.uniforms.uFogFar.value = fog.far
+    time.value += dt
+    surfMat.opacity = 0.42 + Math.sin(time.value * 1.3) * 0.18
   })
   return (
-    <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]}>
-      <planeGeometry args={[620, 360, 210, 122]} />
-      <shaderMaterial ref={mat} vertexShader={vert} fragmentShader={frag} uniforms={uniforms} />
-    </mesh>
+    <>
+      <mesh geometry={sea} material={seaMat} receiveShadow />
+      <mesh geometry={surf} material={surfMat} position-y={0.32} renderOrder={1} />
+    </>
   )
 }

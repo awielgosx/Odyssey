@@ -140,19 +140,21 @@ export function StopTag({ stop, height }: { stop: Stop; height: number }) {
   const voyageId = useGame((s) => s.voyageId)
   const landed = useGame((s) => (stop.directionId ? (s.landings[stop.directionId]?.grades.length ?? 0) > 0 : false))
   const phase = useGame((s) => s.phase)
-  if (phase !== 'play' || (state === 'current' && !sailing)) return null
+  const chart = useGame((s) => s.chart)
+  if (phase !== 'play' || (state === 'current' && !sailing && !chart)) return null
   const dir = stop.directionId ? directionById(stop.directionId) : null
   const recommended = dir ? voyageById(voyageId).recommended.includes(dir.id) : false
   return (
     <Html position={[0, height + 3.4, 0]} center zIndexRange={[10, 0]}>
-      <div className={`flag ${state} ${dir ? dir.pillar : 'special'}`}>
+      {/* on the full map, island flags shrink to their number so they never overlap */}
+      <div className={`flag ${state} ${dir ? dir.pillar : 'special'} ${chart && dir ? 'compact' : ''}`} title={dir ? `${dir.id}. ${dir.name}` : stop.label}>
         {dir ? (
           <>
             <span className="flag-num">{dir.id}</span>
             <span className="flag-pillar" aria-label={dir.pillar === 'proposition' ? 'Value proposition' : 'Value architecture'}>
               {dir.pillar === 'proposition' ? 'P' : 'A'}
             </span>
-            <span className="flag-name">{dir.short}</span>
+            {!chart && <span className="flag-name">{dir.short}</span>}
             {landed && <span className="flag-mark" title="You landed here">{'❦'}</span>}
             {recommended && !landed && state !== 'locked' && <span className="flag-mark owl" title="Athena recommends landing here">{'★'}</span>}
           </>

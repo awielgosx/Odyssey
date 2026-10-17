@@ -21,6 +21,29 @@ export const CONTRIBS = ['financial', 'environmental', 'societal'] as const
 
 const words = (s: string) => (s.match(/[\p{L}\p{N}%€$'’-]+/gu) ?? []).length
 
+export const OTHER = 'Other: '
+export const isOther = (v: unknown) => typeof v === 'string' && v.startsWith(OTHER)
+export const stripOther = (v: string) => (isOther(v) ? v.slice(OTHER.length) : v)
+
+// Placeholder or keyboard-mash text ("test test test", "asdf", "lorem ipsum", "xxx"):
+// caught before Athena is asked, so it can never earn points.
+const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'lorem', 'ipsum', 'dolor', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'idk', 'dunno', 'something', 'stuff', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'yes', 'no'])
+export function isJunk(text: string): boolean {
+  const ws = (text.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).filter(Boolean)
+  if (!ws.length) return false
+  const filler = ws.filter((w) => FILLER.has(w)).length
+  if (filler / ws.length >= 0.5) return true
+  const unique = new Set(ws).size
+  if (ws.length >= 4 && unique / ws.length < 0.35) return true // the same word over and over
+  const letters = ws.join('')
+  if (letters.length >= 8 && !/[aeiouy]/.test(letters)) return true // no vowels: keyboard mash
+  if (ws.some((w) => w.length > 25)) return true
+  return false
+}
+export function junkFields(values: string[]): boolean {
+  return values.some((v) => v.trim() && isJunk(v))
+}
+
 export function optionsFor(step: Step, ctx: StepContext): string[] {
   if (step.kind !== 'pick') return []
   if (step.options) return step.options
@@ -56,6 +79,7 @@ export function missingFor(d: Direction, a: Landing): string[] {
     const n = d.steps.length > 1 ? `${i + 1}. ` : ''
     const v = a[s.id]
     if (s.kind === 'pick' && !v) out.push(`${n}Pick one option.`)
+    if (s.kind === 'pick' && isOther(v) && words(stripOther(String(v))) < 1) out.push(`${n}Say what “something else” is.`)
     if (s.kind === 'text') {
       const w = words(String(v ?? ''))
       if (w < s.min) out.push(`${n}Write at least ${s.min} word${s.min > 1 ? 's' : ''}${s.short ? '' : ' (be concrete: who, what, how)'}.`)
@@ -71,12 +95,20 @@ export function missingFor(d: Direction, a: Landing): string[] {
       if (!CONTRIBS.every((k) => r[k])) out.push(`${n}Give each contribution a sign: +, 0 or −.`)
     }
   })
+  const texts = d.steps.flatMap((s) => {
+    const v = a[s.id]
+    if (s.kind === 'text') return [String(v ?? '')]
+    if (s.kind === 'slots') return (v as string[]) ?? []
+    if (s.kind === 'pick' && isOther(v)) return [stripOther(String(v))]
+    return []
+  })
+  if (junkFields(texts)) out.push('Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.')
   return out
 }
 
 const show = (v: LandingValue | undefined): string => {
   if (v == null) return ''
-  if (typeof v === 'string') return v.trim()
+  if (typeof v === 'string') return stripOther(v).trim()
   if (Array.isArray(v)) return v.map((x) => x.trim()).filter(Boolean).join('; ')
   return CONTRIBS.map((k) => `${k} ${v[k] || '?'}`).join(', ')
 }

@@ -99,12 +99,17 @@ export function GradeView({ grade, attempt, canRevise, onRevise, onRetry, busy }
           )}
         </div>
       )}
+      {grade.total === 0 && grade.source !== 'estimate' && (
+        <div className="hint zero" role="alert">
+          <b>Zero laurels: you cannot sail on yet.</b> Rewrite your answer with real substance and submit it again.
+        </div>
+      )}
       {canRevise && onRevise && grade.total < grade.max && grade.source !== 'estimate' && (
         <div className="submit-row">
-          <button className="btn small" onClick={onRevise}>
-            Revise once
+          <button className={`btn small ${grade.total === 0 ? 'primary' : ''}`} onClick={onRevise}>
+            {grade.total === 0 ? 'Rewrite and resubmit' : 'Revise once'}
           </button>
-          <small className="count">Only your final review counts.</small>
+          <small className="count">{grade.total === 0 ? 'Rewrites after a zero are unlimited.' : 'Only your final review counts.'}</small>
         </div>
       )}
     </div>

@@ -364,6 +364,30 @@ class Engine {
     src.connect(hp).connect(g).connect(this.sfx)
     src.start(t, 0, 1.5)
   }
+  // Homecoming: rising lyre arpeggios over a brighter drone, then a full chord.
+  fanfare() {
+    if (!this.ctx || this.muted) return
+    const now = this.ctx.currentTime
+    this.music.gain.setTargetAtTime(0.6, now, 0.2)
+    this.music.gain.setTargetAtTime(0.32, now + 4.5, 1.2)
+    const arp = [165, 220, 260.7, 330, 440]
+    for (let r = 0; r < 3; r++) arp.forEach((f, i) => this.pluck(f * (r === 2 ? 1.5 : 1), r * 0.7 + i * 0.09, 0.4, this.sfx))
+    ;[220, 330, 440, 660].forEach((f) => this.pluck(f, 2.3, 0.35, this.sfx))
+    ;[330, 293.3, 330, 391.1, 440].forEach((f, i) => this.pluck(f, 3.0 + i * 0.22, 0.3))
+    // a soft frame drum under it
+    for (let i = 0; i < 6; i++) {
+      const t = now + i * 0.35
+      const o = this.ctx.createOscillator()
+      o.frequency.setValueAtTime(120, t)
+      o.frequency.exponentialRampToValueAtTime(55, t + 0.18)
+      const g = this.ctx.createGain()
+      g.gain.setValueAtTime(0.22, t)
+      g.gain.setTargetAtTime(0, t, 0.07)
+      o.connect(g).connect(this.sfx)
+      o.start(t)
+      o.stop(t + 0.4)
+    }
+  }
   wrong() {
     this.pluck(247.5, 0, 0.2, this.sfx)
     this.pluck(220, 0.16, 0.2, this.sfx)

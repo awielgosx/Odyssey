@@ -29,7 +29,7 @@ export interface Quiz {
 export type Source = 'attributes' | 'chain' | 'resources' | 'cutAdd'
 
 export type Step =
-  | { kind: 'pick'; id: string; label: string; options?: string[]; source?: Source }
+  | { kind: 'pick'; id: string; label: string; options?: string[]; source?: Source; other?: boolean }
   | { kind: 'text'; id: string; label: string; min: number; max: number; placeholder?: string; short?: boolean }
   | { kind: 'slots'; id: string; label: string; slots: { label: string; placeholder?: string }[]; min: number }
   | { kind: 'signs'; id: string; label: string }
@@ -49,6 +49,8 @@ export interface Direction {
   steps: Step[]
   main: string // the step whose answer summarises the idea (for Aeolus and the log)
   lens: string // the follow-up thinking this island trains, for the coach
+  why: string // shown to the student: why these questions, and how they help their business
+  tip: string // Athena's coaching line when the student arrives
   questions: string[]
   lexicon: string[]
 }
@@ -99,6 +101,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'Total cost of ownership and the trade-off: what the customer gives up so the total falls.',
+    why: "Customers rarely pay only the price tag: they pay before, during and after using an offer. Mapping the whole bill shows where the real money and effort go, and which part you could remove.",
+    tip: "Look beyond the price tag: the biggest cost is often time, upkeep or what happens afterwards.",
     questions: [
       'Which costs does your customer carry before, during and after buying?',
       'What could you strip out of the offer so the total cost falls?',
@@ -127,7 +131,7 @@ export const DIRECTIONS: Direction[] = [
       why: 'A hassle never disappears: it moves. Removing it from the customer (proposition) means someone in your architecture absorbs it, with its cost and risk. Michelin Fleet Solutions had to learn to price that risk.',
     },
     steps: [
-      { kind: 'pick', id: 'stage', label: 'Where in the customer’s journey is the worst hassle?', options: JOURNEY },
+      { kind: 'pick', id: 'stage', label: 'Where in the customer’s journey is the worst hassle?', options: JOURNEY, other: true },
       {
         kind: 'text',
         id: 'idea',
@@ -139,6 +143,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'The hassle moves into the value architecture: who absorbs it, and at what cost or risk.',
+    why: "Every chore around your offer is a reason to hesitate. Taking one over can be worth more than a lower price, but the chore never disappears: someone in your value chain now has to do it.",
+    tip: "Picture one real customer's week with your offer. Where do they sigh?",
     questions: [
       'What else does your customer have to buy or do to make your offer work?',
       'Where does using it get frustrating, slow or complicated?',
@@ -172,6 +178,7 @@ export const DIRECTIONS: Direction[] = [
         id: 'barrier',
         label: 'Why do some people stay away from offers like Troy’s?',
         options: ['They can’t afford it', 'They can’t access or use it (skills, place, time)', 'They dislike how it is done today', 'They never thought it was for them'],
+        other: true,
       },
       {
         kind: 'text',
@@ -184,6 +191,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'Barrier analysis: the specific barrier that excludes a named group, and what they use instead.',
+    why: "The biggest growth often sits with people who do not buy at all. Knowing exactly why they stay away tells you what to change.",
+    tip: "Don't ask who buys. Ask who should buy but doesn't, and what stops them.",
     questions: [
       'Who could use this kind of offer but ignores or refuses it?',
       'What do they do instead, and what does that cost them?',
@@ -224,6 +233,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'The value curve trade-off: an attribute raised or created, and one deliberately lowered.',
+    why: "Every offer is bought for what it does, how it makes people feel, or both. Shifting that balance redraws your value curve, and something has to give to pay for it.",
+    tip: "Strong value curves lower something on purpose. What would your target customer happily give up?",
     questions: [
       'Is your offer bought for what it does, or for how it makes people feel?',
       'What positive emotion could you add to a functional offer?',
@@ -252,18 +263,20 @@ export const DIRECTIONS: Direction[] = [
       why: 'Borrowing from another industry changes the reference point customers judge value and price against. Dropping the animals also cut one of the circus’s biggest costs.',
     },
     steps: [
-      { kind: 'text', id: 'source', label: 'Another industry or segment that does a similar job well', min: 1, max: 8, short: true, placeholder: 'e.g. theatre, airlines, video games, hotels' },
+      { kind: 'text', id: 'job', label: 'The job your customers hire Troy to do, in a few words', min: 2, max: 12, short: true, placeholder: 'e.g. a night out to remember; getting goods to shops on time' },
       {
         kind: 'text',
         id: 'idea',
-        label: 'Which specific rule or feature do you borrow from it, and which Troy habit do you drop, as Cirque dropped the animals?',
-        min: 10,
-        max: 45,
-        placeholder: 'We borrow … from …, and drop …',
+        label: 'Which industry or segment does that same job brilliantly? Name the one rule or feature you would borrow from it, and the Troy habit you would drop to make room.',
+        min: 12,
+        max: 50,
+        placeholder: 'Like [industry], we would …; and we would stop …',
       },
     ],
     main: 'idea',
-    lens: 'Borrow one specific code and eliminate one industry habit; the new reference point for price.',
+    lens: 'The job to be done, one specific rule borrowed from an industry doing that job well, and one Troy habit dropped; the new reference point for price.',
+    why: "Customers judge an offer against the alternatives they know. Borrowing one rule from an industry that does the same job well changes that reference point: Cirque did 'a magical night out' the way theatre does, so it was judged, and priced, like theatre.",
+    tip: "First name the job your customer hires you for. Then ask who else does that job brilliantly.",
     questions: [
       'Which other industry solves a similar problem better?',
       'Which precise rule or feature would you borrow, not just the "spirit"?',
@@ -307,6 +320,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'sides',
     lens: 'Two-sided logic: what each side gains, the money flow, and the chicken-and-egg or trust problem.',
+    why: "A third group can bring assets, demand or money you do not have. It turns a one-sided sale into a deal where both sides must win, and someone has to come first.",
+    tip: "Every two-sided idea must answer: which side joins first, and why would they join an empty platform?",
     questions: [
       'Who would benefit from being connected to your customers?',
       'What does each side gain, and who pays whom?',
@@ -340,6 +355,7 @@ export const DIRECTIONS: Direction[] = [
         id: 'model',
         label: 'Which revenue model do you try?',
         options: ['Pay per use', 'Subscription', 'Pay for results', 'Freemium', 'A third party pays', 'Rent or lease', 'Commission on transactions'],
+        other: true,
       },
       {
         kind: 'text',
@@ -352,6 +368,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'User, decision-maker and payer after the change, and why the payer prefers the new money flow.',
+    why: "How customers pay shapes what they value and who carries the risk. User, decision-maker and payer can be different people, and changing who pays can unlock the whole model.",
+    tip: "Separate the three roles first: who uses, who decides, who pays. Then move the money.",
     questions: [
       'Could the customer pay differently: per use, subscription, by result?',
       'Which third party might fund part of the offer?',
@@ -380,7 +398,7 @@ export const DIRECTIONS: Direction[] = [
       why: 'The technology rebuilds one part of the architecture (inputs and production) while the proposition to the next actor stays familiar. Less change for the customer means faster adoption.',
     },
     steps: [
-      { kind: 'pick', id: 'step', label: 'Where in your value chain does the technology go?', source: 'chain' },
+      { kind: 'pick', id: 'step', label: 'Where in your value chain does the technology go?', source: 'chain', other: true },
       {
         kind: 'text',
         id: 'idea',
@@ -392,6 +410,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'A named technology at one value-chain step, and its knock-on effect on the value proposition.',
+    why: "A technology only matters when it changes something the customer notices. Placing it at one precise step of your value chain stops it being a buzzword.",
+    tip: "Name the step first, then the technology. 'Use AI' is not an answer; 'AI that does X at step Y' is.",
     questions: [
       'Which technology do competitors or other industries use that you do not?',
       'At which exact step of your chain would it act?',
@@ -420,7 +440,7 @@ export const DIRECTIONS: Direction[] = [
       why: 'Without credit there is no risk to assess, so a tobacconist can open the account in minutes. The redesigned step (distribution) only works because the proposition was narrowed too.',
     },
     steps: [
-      { kind: 'pick', id: 'step', label: 'Which step do you reinvent?', source: 'chain' },
+      { kind: 'pick', id: 'step', label: 'Which step do you reinvent?', source: 'chain', other: true },
       {
         kind: 'slots',
         id: 'pair',
@@ -434,6 +454,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'pair',
     lens: 'A radical (not incremental) change to one step, its cost, and what else must change to make it work.',
+    why: "Doing one step radically differently (not just faster) can change the whole proposition, but it usually forces trade-offs elsewhere, as Nickel gave up credit.",
+    tip: "Radical means a different who, where or how, not 10% better.",
     questions: [
       'What are the main activities in your value chain?',
       'Which step could be done in a radically different way, not just faster?',
@@ -462,18 +484,20 @@ export const DIRECTIONS: Direction[] = [
       why: 'An added step is never free: environmental contributions improve, while financial ones face new costs (collection, sorting) that must be offset by cheaper inputs or a price premium.',
     },
     steps: [
-      { kind: 'pick', id: 'move', label: 'Remove a step of your chain, or add a new one', source: 'cutAdd' },
+      { kind: 'pick', id: 'move', label: 'Remove one step of the value chain you charted at the Narrows, or add a new one', source: 'cutAdd', other: true },
       {
         kind: 'text',
         id: 'idea',
         label: 'If removed: who does it instead, or why is it no longer needed? If added: what does it create, and who pays for it?',
         min: 8,
         max: 40,
+        placeholder: 'Without this step, … does it instead / With this new step, we … and … pays for it',
       },
-      { kind: 'signs', id: 'contrib', label: 'What happens to the three contributions?' },
     ],
     main: 'idea',
-    lens: 'Contributions: the financial, environmental and societal effects of the cut or added step, including a cost.',
+    lens: 'Who does the removed step instead, or who pays for the added one; the effect on cost and environmental impact.',
+    why: "Each step costs money and resources. Removing one (who does it instead?) or adding one, such as repair or recycling, changes costs, price and environmental impact at the same time.",
+    tip: "A removed step still needs someone to do the work. An added step still needs someone to pay for it.",
     questions: [
       'What is each step really for? What happens if you remove it?',
       'What step could you add: repair, reuse, recycling?',
@@ -507,6 +531,7 @@ export const DIRECTIONS: Direction[] = [
         id: 'input',
         label: 'Which input of Troy do you rethink?',
         options: ['Materials', 'Energy', 'Money and funding', 'Labour and skills', 'Ideas and content', 'Data'],
+        other: true,
       },
       {
         kind: 'slots',
@@ -521,6 +546,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'pair',
     lens: 'A concrete new source, and its effect on cost, quality and environmental contributions.',
+    why: "What you depend on (materials, money, skills, ideas) limits your costs and your impact. A new source, sometimes what others throw away, can change both.",
+    tip: "Ask what others discard, under-use or would give for free.",
     questions: [
       'Where could new inputs come from: money, expertise, materials, a crowd?',
       'Which input could be replaced by something others discard?',
@@ -564,6 +591,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'deal',
     lens: 'Complementary resources, and what the partner gets in return (fair value sharing).',
+    why: "Partners with complementary strengths, even rivals, let you do what you cannot do alone. A deal only lasts if both sides gain.",
+    tip: "A good partnership answers two questions: what do they have that I lack, and what is in it for them?",
     questions: [
       'Who are your competitors, and what are their strongest resources?',
       'Where do their strengths complement your weaknesses?',
@@ -593,26 +622,26 @@ export const DIRECTIONS: Direction[] = [
     },
     steps: [
       {
-        kind: 'slots',
-        id: 'usage',
-        label: 'What else do Troy’s customers use around the offer?',
-        min: 1,
-        slots: [
-          { label: 'Before', placeholder: '' },
-          { label: 'During', placeholder: '' },
-          { label: 'After', placeholder: '' },
-        ],
+        kind: 'text',
+        id: 'needs',
+        label: 'What do your customers buy from someone else to get the most out of Troy’s offer?',
+        min: 3,
+        max: 25,
+        placeholder: 'e.g. for a car: fuel, insurance, parking; for a concert: transport, drinks, a hotel',
       },
       {
         kind: 'text',
         id: 'idea',
-        label: 'Integrate one of them or team up with its provider. What does your customer gain, and what does the complementor gain?',
+        label: 'Team up with or integrate one of them. What does your customer gain, and what does that provider gain?',
         min: 10,
         max: 45,
+        placeholder: 'With [provider], we … so customers … and they …',
       },
     ],
     main: 'idea',
-    lens: 'Before/during/after usage, and the gain for both the customer and the complementor.',
+    lens: 'A real complementor (bought alongside the offer from someone else) and the gain for both the customer and that provider.',
+    why: "Customers rarely use your offer on its own: they also need other products or services to get its full value (a car needs fuel, insurance and parking). Teaming up with those providers makes both offers worth more.",
+    tip: "Follow your customer before, during and after using your offer. What else do they buy, and from whom?",
     questions: [
       'What do customers use before, during and after your offer?',
       'Could you integrate one of those offers into yours?',
@@ -641,7 +670,7 @@ export const DIRECTIONS: Direction[] = [
       why: 'Direction 14 redeploys an existing, hard-to-copy resource (a mountain with lifts and beds) towards new uses or customers. The others are directions 1, 12 and 13.',
     },
     steps: [
-      { kind: 'pick', id: 'resource', label: 'Which of your resources or competences?', source: 'resources' },
+      { kind: 'pick', id: 'resource', label: 'Which of your resources or competences?', source: 'resources', other: true },
       { kind: 'checks', id: 'vrio', label: 'Be honest: tick only what is true', options: ['Valuable to customers', 'Rare among competitors', 'Hard to imitate', 'Under-used today'] },
       {
         kind: 'text',
@@ -653,6 +682,8 @@ export const DIRECTIONS: Direction[] = [
     ],
     main: 'idea',
     lens: 'The VRIO test (valuable, rare, hard to imitate) and a named new customer for the resource.',
+    why: "Some of what you already own (know-how, assets, data, brand) is valuable, rare and hard to copy. Offered to new customers, it can become a business of its own, as AWS did.",
+    tip: "Look for what you built for yourself that others would pay to use.",
     questions: [
       'Which resources and competencies are rare and hard to copy?',
       'Which are under-used today?',

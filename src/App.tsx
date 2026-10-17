@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { audio } from './audio/engine'
-import { useGame } from './store'
+import { directionById } from './content/directions'
+import { stopComplete, useGame } from './store'
+import { Celebration } from './ui/Celebration'
 import { IthacaEnd } from './ui/End'
 import { Coach, Nav, Ribbon, Toast, TopRight, useKeys } from './ui/Hud'
 import { Intro, Setup, Title } from './ui/Overlays'
@@ -23,13 +25,30 @@ function Panel() {
       {stop.kind === 'lemnos' && <LemnosTask />}
       {stop.kind === 'olympus' && <OlympusTask />}
       {stop.kind === 'ithaca' && <IthacaEnd />}
+      <PanelNext />
     </aside>
+  )
+}
+
+// Once a stop is done, the way on is right where the player's eyes already are.
+function PanelNext() {
+  const s = useGame()
+  const next = STOPS[s.stopIndex + 1]
+  if (!next || !stopComplete(s, s.stopIndex)) return null
+  const label = next.directionId ? `island ${next.directionId} · ${directionById(next.directionId).short}` : next.label
+  return (
+    <div className="panel-foot">
+      <button className="btn primary" onClick={() => (audio.click(), s.sailTo(s.stopIndex + 1))}>
+        Sail on to {label} {'\u2192'}
+      </button>
+    </div>
   )
 }
 
 export default function App() {
   const phase = useGame((s) => s.phase)
   const chart = useGame((s) => s.chart)
+  const celebrate = useGame((s) => s.phase === 'play' && !s.sailing && s.stopIndex === STOPS.length - 1 && !s.celebrated)
   useKeys()
   useEffect(() => {
     // a reload mid-voyage returns to the title so audio can start on a click
@@ -50,6 +69,7 @@ export default function App() {
           <Nav />
         </>
       )}
+      {celebrate && <Celebration />}
       <Toast />
       {phase === 'title' && <Title />}
       {phase === 'intro' && <Intro />}

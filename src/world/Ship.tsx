@@ -19,7 +19,7 @@ export const HULLS = {
   dolphin: ['#24577a', PAL.ochre],
 } as const
 
-function useHullGeometry(style: keyof typeof HULLS) {
+export function useHullGeometry(style: keyof typeof HULLS) {
   return useMemo(() => {
     const s = new THREE.Shape()
     s.moveTo(-1.55, 0.95)
@@ -52,7 +52,7 @@ function useHullGeometry(style: keyof typeof HULLS) {
   }, [style])
 }
 
-function useSailGeometry() {
+export function useSailGeometry() {
   return useMemo(() => {
     const g = new THREE.PlaneGeometry(1.7, 1.35, 8, 6)
     const pos = g.attributes.position
@@ -91,13 +91,23 @@ export function Ship() {
     shipState.pos.set(d.x, 0, d.z)
   }, [])
 
+  // when not sailing, the ship sits at the current stop: after a new voyage, a reload or a jump
+  const startedAt = useGame((s) => s.startedAt)
+  useEffect(() => {
+    if (sailing) return
+    voyage.current = null
+    shipState.sailing = false
+    const d = STOPS[stopIndex].dock
+    shipState.pos.set(d.x, 0, d.z)
+  }, [sailing, stopIndex, startedAt])
+
   useEffect(() => {
     if (!sailing) return
     const from = shipState.pos.x
     const to = STOPS[stopIndex].dock.x
     const dist = Math.abs(to - from)
     const back = to < from
-    voyage.current = { from, to, t: 0, dur: Math.max(2, dist / (back ? 30 : 11)) }
+    voyage.current = { from, to, t: 0, dur: Math.max(1.6, dist / (back ? 34 : 16)) }
     shipState.dir = back ? -1 : 1
     shipState.sailing = true
     audio.sailing = true

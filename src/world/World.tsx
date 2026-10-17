@@ -133,7 +133,18 @@ function Lights() {
 }
 
 function SeaNames() {
-  const common = { font: marcellus, fontSize: 3.2, color: PAL.marble, fillOpacity: 0.55, anchorX: 'center' as const, anchorY: 'middle' as const, letterSpacing: 0.08 }
+  // parchment letters with a dark ink outline: readable on deep water, shallows and foam alike
+  const common = {
+    font: marcellus,
+    fontSize: 3.4,
+    color: '#f6e7c4',
+    outlineWidth: 0.12,
+    outlineColor: '#1d1714',
+    outlineOpacity: 0.85,
+    anchorX: 'center' as const,
+    anchorY: 'middle' as const,
+    letterSpacing: 0.08,
+  }
   const xp = X0 + SPACING * 4
   const xa = X0 + SPACING * 12
   return (
@@ -305,7 +316,7 @@ export function World() {
         <SkyDome />
         <Clouds />
         <Lights />
-        <Ocean sunDir={SUN_DIR} fogColor={FOG.color} fog={fogState} />
+        <Ocean />
         <Troy />
         {STOPS.filter((s) => s.kind === 'island').map((s) => (
           <DirectionIsland key={s.key} stop={s} />
