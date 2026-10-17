@@ -439,6 +439,24 @@ const HINT_SCHEMA = { type: 'OBJECT', properties: { question: { type: 'STRING' }
 
 const RETRYABLE = [404, 408, 429, 500, 502, 503, 504]
 
+// Same check as the browser's: placeholder or keyboard-mash text never reaches the model.
+const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'lorem', 'ipsum', 'dolor', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'idk', 'dunno', 'something', 'stuff', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'yes', 'no'])
+function isJunk(text: string) {
+  const ws = (text.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).filter(Boolean)
+  if (!ws.length) return false
+  if (ws.filter((w) => FILLER.has(w)).length / ws.length >= 0.5) return true
+  if (ws.length >= 4 && new Set(ws).size / ws.length < 0.35) return true
+  const letters = ws.join('')
+  if (letters.length >= 8 && !/[aeiouy]/.test(letters)) return true
+  return ws.some((w) => w.length > 25)
+}
+// answers arrive as "question\n- answer" lines; check every written answer of three words or more
+const hasJunk = (answer: string) =>
+  answer
+    .split('\n')
+    .map((l) => l.replace(/^\s*-\s*/, '').replace(/^[^:]{0,60}:\s*/, ''))
+    .some((l) => l.trim().split(/\s+/).length >= 3 && isJunk(l))
+
 // Try each model in turn until one answers, within the time budget.
 async function callGemini(prompt: string, schema: object, maxTokens: number, first: string) {
   const start = Date.now()
@@ -449,7 +467,8 @@ async function callGemini(prompt: string, schema: object, maxTokens: number, fir
       const left = BUDGET_MS - (Date.now() - start)
       if (left < 2500) throw Object.assign(new Error('budget'), { status: last.status ?? 504, tried: model })
       try {
-        const out = await callGeminiOnce(prompt, schema, maxTokens, light, model, Math.min(left, 15000))
+        // the first model gets a shorter leash so a slow or overloaded one hands over quickly
+        const out = await callGeminiOnce(prompt, schema, maxTokens, light, model, Math.min(left, model === order[0] ? 9000 : 12000))
         return { out, model }
       } catch (e) {
         last = e as { status?: number; message?: string }
@@ -516,10 +535,19 @@ export default async function handler(req: Req, res: Res) {
   const answer = String(b.answer ?? '').slice(0, MAX_CHARS)
   const previous = Array.isArray(b.previous) ? b.previous.slice(0, 5).map(String) : []
 
+  if (b.mode !== 'hint' && hasJunk(answer)) {
+    const rubric = RUBRICS[kind]
+    return res.status(200).json({
+      scores: rubric.map((c) => ({ criterion: c.key, score: 0, note: 'Placeholder text is not an answer.' })),
+      feedback: 'There is nothing to review yet: part of this answer is placeholder text. Write what you really think, even roughly, and submit again.',
+      question: 'What would you tell a real customer here, in your own words?',
+      model: 'rules',
+    })
+  }
   try {
     if (b.mode === 'hint') {
-      // nudges need judgement more than speed: the main model first
-      const { out, model } = await callGemini(hintPrompt(kind, directionId, context, journey, answer, previous), HINT_SCHEMA, 2048, MODEL)
+      // the fast model answers nudges in a couple of seconds; the main model takes over if it fails
+      const { out, model } = await callGemini(hintPrompt(kind, directionId, context, journey, answer, previous), HINT_SCHEMA, 2048, FAST)
       return res.status(200).json({ question: String(out.question ?? ''), model })
     }
     const { out, model } = await callGemini(gradePrompt(kind, directionId, context, journey, answer), GRADE_SCHEMA, 2048, kind === 'landing' ? FAST : MODEL)
