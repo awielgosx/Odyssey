@@ -103,6 +103,7 @@ interface GameState {
   eggs: string[]
   drafts: Record<string, unknown>
   celebrated: boolean
+  briefed: boolean
   toast: { text: string; id: number } | null
   // actions
   set: (p: Partial<GameState>) => void
@@ -163,6 +164,7 @@ const fresh = {
   eggs: [] as string[],
   drafts: {} as Record<string, unknown>,
   celebrated: false,
+  briefed: false,
   toast: null,
 }
 
@@ -213,7 +215,7 @@ export const useGame = create<GameState>()(
       sailTo: (index) => {
         const s = get()
         if (s.sailing || index === s.stopIndex || index < 0 || index >= STOPS.length) return
-        if (index > s.furthest + 1) return
+        if (index > s.furthest + 1 && !freeTravel(s)) return
         set({ stopIndex: index, sailing: true, landingOpen: null })
       },
       arrive: () => {
@@ -277,6 +279,9 @@ export const useGame = create<GameState>()(
 
 // ---------- derived helpers ----------
 
+// Demo ships can sail anywhere at once, for class walkthroughs and testing.
+export const freeTravel = (s: { voyageId: string }) => s.voyageId !== 'own'
+
 export const bestGrade = (a: { grades: Grade[] } | null | undefined) => (a && a.grades.length ? a.grades[a.grades.length - 1] : null)
 
 // A review of 0 is a fail: the player rewrites before sailing on.
@@ -332,17 +337,25 @@ export interface FinalGrade {
 export const checkValue = (c: CheckState | undefined) => (c?.done ? (c.wrong.length === 0 ? 1 : c.wrong.length === 1 ? 0.4 : 0) : 0)
 export const checkPoints = (s: Pick<GameState, 'checks'>) => Object.values(s.checks).reduce((m, c) => m + checkValue(c), 0)
 
+// Odyssey 3.14 explores all fourteen directions but wins on a few. The score follows that:
+// Knowledge 10% (quick checks), Framing 10% (Troy), Exploration 20% (all fourteen islands,
+// lightly weighted), Focus 60% (the two ideas chosen at Aeolus, Aeolus, Lemnos and Olympus).
+export const WEIGHTS = { knowledge: 0.1, framing: 0.1, application: 0.2, synthesis: 0.6 }
+
+const ratio = (a: { grades: Grade[] } | null | undefined) => {
+  const g = bestGrade(a)
+  return g ? g.total / g.max : 0
+}
+
 export function finalGrade(s: GameState): FinalGrade {
   const firstTry = Object.values(s.checks).filter((c) => c.firstTry).length
   const knowledge = checkPoints(s) / 14
-  const framing = (bestGrade(s.troy)?.total ?? 0) / 4
-  // every island counts: the average of the fourteen island reviews
-  const application = Array.from({ length: 14 }, (_, i) => {
-    const g = bestGrade(s.landings[i + 1])
-    return g ? g.total / g.max : 0
-  }).reduce((m, x) => m + x, 0) / 14
-  const synthesis = ((bestGrade(s.aeolus)?.total ?? 0) + (bestGrade(s.lemnos)?.total ?? 0) + (bestGrade(s.olympus)?.total ?? 0)) / 16
-  const percent = Math.round((knowledge * 0.15 + framing * 0.1 + application * 0.4 + synthesis * 0.35) * 100)
+  const framing = ratio(s.troy)
+  const application = Array.from({ length: 14 }, (_, i) => ratio(s.landings[i + 1])).reduce((m, x) => m + x, 0) / 14
+  const chosen = s.aeolus?.answer
+  const chosenIdeas = chosen?.p && chosen?.a ? (ratio(s.landings[chosen.p]) + ratio(s.landings[chosen.a])) / 2 : 0
+  const synthesis = (chosenIdeas + ratio(s.aeolus) + ratio(s.lemnos) + ratio(s.olympus)) / 4
+  const percent = Math.round((knowledge * WEIGHTS.knowledge + framing * WEIGHTS.framing + application * WEIGHTS.application + synthesis * WEIGHTS.synthesis) * 100)
   const rank = percent >= 85 ? 'Captain' : percent >= 70 ? 'Navigator' : percent >= 50 ? 'Helmsman' : 'Deckhand'
   const polytropos = percent >= 90 && firstTry >= 12
   return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent * 2) / 10, rank, polytropos }

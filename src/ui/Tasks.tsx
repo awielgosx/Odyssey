@@ -1,10 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { audio } from '../audio/engine'
-import { directionById, type Direction, type Step } from '../content/directions'
-import { CONTRIBS, emptyLanding, flattenLanding, isOther, junkFields, missingFor, optionsFor, OTHER, stripOther, summaryOf, type Landing, type LandingValue, type NarrowsAnswer, type StepContext } from '../content/landing'
+import { DIRECTIONS, directionById, type Direction, type Step } from '../content/directions'
+import { CONTRIBS, emptyLanding, flattenLanding, isNoFit, isOther, junkFields, missingFor, optionsFor, OTHER, stripOther, summaryOf, type Landing, type LandingValue, type NarrowsAnswer, type StepContext } from '../content/landing'
 import { voyageById } from '../content/voyages'
-import { landedIn, useGame, type AeolusAnswer, type LemnosAnswer, type OlympusAnswer, type TroyAnswer } from '../store'
+import { freeTravel, landedIn, useGame, type AeolusAnswer, type LemnosAnswer, type OlympusAnswer, type TroyAnswer } from '../store'
 import { Field, GradeView, SignToggle, wordCount } from './common'
 import { useDraft, useGradedTask } from './useTask'
 import { ValueCurveEditor } from './ValueCurve'
@@ -340,6 +340,7 @@ function IslandWork({ d }: { d: Direction }) {
   const saveLanding = useGame((s) => s.saveLanding)
   const [a, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding(d))
   const task = useGradedTask(`land${d.id}`, record?.grades ?? [])
+  const nofit = isNoFit(a)
   const missing = missingFor(d, a)
   const req = { kind: 'landing' as const, directionId: d.id, answer: flattenLanding(d, a), extra: a }
   return (
@@ -349,9 +350,26 @@ function IslandWork({ d }: { d: Direction }) {
         <b>Why these questions?</b> {d.why}
       </div>
       <fieldset disabled={!task.editing} style={{ border: 0, padding: 0, margin: 0 }}>
-        {d.steps.map((st, i) => (
-          <StepInput key={st.id} step={st} n={d.steps.length > 1 ? `${i + 1}` : ''} value={a[st.id]} onChange={(v) => setA((x) => ({ ...x, [st.id]: v }))} />
-        ))}
+        <div className="seg fit-toggle" role="group" aria-label="Does this direction fit your business?">
+          <button type="button" aria-pressed={!nofit} onClick={() => setA((x) => ({ ...x, _mode: 'fit' }))}>
+            I have an idea
+          </button>
+          <button type="button" aria-pressed={nofit} onClick={() => setA((x) => ({ ...x, _mode: 'nofit' }))}>
+            This direction doesn’t fit my business
+          </button>
+        </div>
+        {nofit ? (
+          <Field
+            label="Why doesn’t it fit? And what would have to change for it to fit?"
+            limit={60}
+            rows={4}
+            value={String(a.nofit ?? '')}
+            onChange={(v) => setA((x) => ({ ...x, nofit: v }))}
+            placeholder="Use the direction’s logic: what in your business makes it fail here, and what would have to be true for it to work?"
+          />
+        ) : (
+          d.steps.map((st, i) => <StepInput key={st.id} step={st} n={d.steps.length > 1 ? `${i + 1}` : ''} value={a[st.id]} onChange={(v) => setA((x) => ({ ...x, [st.id]: v }))} />)
+        )}
       </fieldset>
       <HintBox hints={task.hints} />
       {task.editing && (
@@ -583,13 +601,18 @@ export function AeolusTask() {
   const landings = useGame((s) => s.landings)
   const aeolus = useGame((s) => s.aeolus)
   const saveAeolus = useGame((s) => s.saveAeolus)
-  const pIds = useGame(useShallow((s) => landedIn(s, 'proposition')))
-  const aIds = useGame(useShallow((s) => landedIn(s, 'architecture')))
+  // only islands where the player had an idea can be combined; reasoned "doesn't fit" answers stay out
+  // in demo voyages the teacher may jump straight here: drafted island answers count too
+  const answerOf = (s: ReturnType<typeof useGame.getState>, id: number) => s.landings[id]?.answer ?? (freeTravel(s) ? (s.drafts[`land${id}`] as Landing | undefined) : undefined)
+  const pool = (s: ReturnType<typeof useGame.getState>, sea: 'proposition' | 'architecture') =>
+    (freeTravel(s) ? DIRECTIONS.filter((d) => d.pillar === sea && answerOf(s, d.id)).map((d) => d.id) : landedIn(s, sea)).filter((id) => !isNoFit(answerOf(s, id)))
+  const pIds = useGame(useShallow((s) => pool(s, 'proposition')))
+  const aIds = useGame(useShallow((s) => pool(s, 'architecture')))
   const [a, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: null, a: null, promise: '', enabler: '', link: '', who: '', gain: '', sentence: '' })
   const [advice, setAdvice] = useState('')
   const task = useGradedTask('aeolus', aeolus?.grades ?? [])
   const missingSea = pIds.length === 0 ? 'proposition' : aIds.length === 0 ? 'architecture' : null
-  const idea = (id: number | null) => (id ? summaryOf(directionById(id), landings[id]?.answer).replace(/\.$/, '') : '')
+  const idea = (id: number | null) => (id ? summaryOf(directionById(id), answerOf(useGame.getState(), id)).replace(/\.$/, '') : '')
   const score = (id: number) => landings[id]?.grades.at(-1)
   const gainLabel = indicatorLabel(a.gain)
   const assemble = (x: AeolusAnswer) =>
@@ -619,7 +642,7 @@ export function AeolusTask() {
         </div>
         <div className="panel-body">
           <div className="hint">
-            <b>Aeolus says:</b> the winds need your ideas from both seas. Use the voyage ribbon at the top to return to any island you have not finished.
+            <b>Aeolus says:</b> the winds need at least one real idea from each sea, and you marked every island in the Sea of the Value {missingSea === 'proposition' ? 'Proposition' : 'Architecture'} as not fitting. Sail back to the island that came closest (use the voyage ribbon at the top), switch it to “I have an idea”, and resubmit.
           </div>
         </div>
       </>

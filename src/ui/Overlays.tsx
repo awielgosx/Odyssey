@@ -96,6 +96,25 @@ const STEPS = [
     ),
   },
   {
+    title: 'Explore widely, then go deep',
+    body: (
+      <>
+        <p>
+          Odyssey 3.14 gives you fourteen directions to reinvent a business model. You explore all of them, but no business uses them all: the winners combine <b>one or two</b> directions brilliantly.
+        </p>
+        <p>
+          So the islands are a fast idea hunt. If a direction does not fit your business, say so and explain why: that is a valid answer. Then you choose your best two ideas and go deep.
+        </p>
+        <div className="score-split" aria-label="How your score is built">
+          <span>Quick checks 10%</span>
+          <span>Troy 10%</span>
+          <span>14 islands 20%</span>
+          <span>Your two chosen ideas, Aeolus, Lemnos and Olympus: 60%</span>
+        </div>
+      </>
+    ),
+  },
+  {
     title: 'How the voyage works',
     body: (
       <ol className="steps">
@@ -103,7 +122,7 @@ const STEPS = [
           <b>Troy.</b> Describe the traditional business model you want to reinvent.
         </li>
         <li>
-          <b>Fourteen numbered islands</b>, the 14 directions of Odyssey 3.14: islands 1 to 7 change the value proposition (<PillarBadge k="p" />), 8 to 14 the value architecture (<PillarBadge k="a" />). At each one: a real case, a quick check that tests the logic, then one or two short questions that apply the direction to your business. Halfway, at <b>the Narrows</b>, you chart how your business is built and delivered.
+          <b>Fourteen numbered islands</b>, the 14 directions of Odyssey 3.14: islands 1 to 7 change the value proposition (<PillarBadge k="p" />), 8 to 14 the value architecture (<PillarBadge k="a" />). At each one: a real case, a quick check that tests the logic, then one or two short questions that apply the direction to your business (or a reasoned “this doesn’t fit”). Halfway, at <b>the Narrows</b>, you chart how your business is built and delivered.
         </li>
         <li>
           <b>Aeolus</b> checks that your ideas hold together, <b>Lemnos</b> forges them into one model, and the <b>gods of Olympus</b> question it.
@@ -119,6 +138,7 @@ const STEPS = [
 const COACH_LINES = [
   'I am Athena, your mentor. I will walk with you from Troy to Ithaca.',
   'Learn these three pillars. I will come back to them at every island.',
+  'Breadth finds the ideas. Depth wins the score.',
   'I ask, I never answer. And when an idea is weak, I will tell you so.',
 ]
 
@@ -136,7 +156,7 @@ export function Intro() {
         </p>
         <h2>{cur.title}</h2>
         <div className="intro-coach">
-          <Athena mood={step === 2 ? 'stern' : 'pleased'} size={88} />
+          <Athena mood={step === STEPS.length - 1 ? 'stern' : 'pleased'} size={88} />
           <p>{COACH_LINES[step]}</p>
         </div>
         {cur.body}

@@ -2098,3 +2098,50 @@ label.field > span .count {
   font-weight: 400;
   color: var(--ink-soft);
 }
+.seg.fit-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  margin: 10px 0 2px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.seg.fit-toggle button {
+  border: 0;
+  padding: 6px 14px;
+  background: transparent;
+  font: 600 14px var(--body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.seg.fit-toggle button[aria-pressed='true'] {
+  background: var(--ink);
+  color: #f1e4c3;
+}
+.brief-list {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+.brief-list li {
+  margin-bottom: 8px;
+}
+.score-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr 6fr;
+  gap: 4px;
+  margin: 10px 0 6px;
+}
+.score-split span {
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.25;
+  color: #fbf3e0;
+  background: var(--ink-soft);
+}
+.score-split span:nth-child(3) {
+  background: var(--p);
+}
+.score-split span:nth-child(4) {
+  background: var(--clay);
+}

@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { directionById } from '../content/directions'
 import { voyageById } from '../content/voyages'
-import { stopComplete, useGame } from '../store'
+import { freeTravel, stopComplete, useGame } from '../store'
 import { buildIsland } from './coast'
 import { LateFeeStall, TiresiasOar } from './Eggs'
 import { Cypress, LandmarkModel, M, OliveTree } from './Landmarks'
@@ -120,6 +120,7 @@ export function useStopClick(stop: Stop) {
     const s = useGame.getState()
     if (s.phase !== 'play') return
     if (stop.index === s.stopIndex) return
+    if (freeTravel(s)) return sailTo(stop.index)
     if (stop.index > s.furthest + 1) {
       const nxt = STOPS[s.furthest + 1]
       say(`The sea lane reaches ${stop.label} later. Next stop: ${nxt.label}.`)

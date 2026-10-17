@@ -312,7 +312,7 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, grou
             })}
           </div>
           <p className="doc-foot">
-            Voyage score {g.outOf20}/20 ({g.percent}%): knowledge {Math.round(g.knowledge * 100)}%, framing {Math.round(g.framing * 100)}%, application {Math.round(g.application * 100)}%, synthesis {Math.round(g.synthesis * 100)}%. {v.id === 'own' ? '' : `Demo voyage based on ${v.title.toLowerCase()}.`} Every idea was written by the authors; the coach only asked questions.
+            Voyage score {g.outOf20}/20 ({g.percent}%): knowledge {Math.round(g.knowledge * 100)}%, framing {Math.round(g.framing * 100)}%, exploration {Math.round(g.application * 100)}%, focus {Math.round(g.synthesis * 100)}%. {v.id === 'own' ? '' : `Demo voyage based on ${v.title.toLowerCase()}.`} Every idea was written by the authors; the coach only asked questions.
           </p>
         </section>
       )}

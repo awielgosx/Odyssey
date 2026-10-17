@@ -76,10 +76,10 @@ export function buildLog(): string {
   }
   L.push('')
   L.push('## 8. Scores')
-  L.push(`- Knowledge (quick checks: 1 first try, 0.4 later): ${fmt(g.knowledge)}`)
-  L.push(`- Framing (Troy): ${fmt(g.framing)}`)
-  L.push(`- Application (the fourteen island reviews): ${fmt(g.application)}`)
-  L.push(`- Synthesis (Aeolus, Lemnos, Olympus): ${fmt(g.synthesis)}`)
+  L.push(`- Knowledge, 10% (quick checks: 1 first try, 0.4 second, then 0): ${fmt(g.knowledge)}`)
+  L.push(`- Framing, 10% (Troy): ${fmt(g.framing)}`)
+  L.push(`- Exploration, 20% (the fourteen islands, including reasoned 'does not fit' answers): ${fmt(g.application)}`)
+  L.push(`- Focus, 60% (the two ideas chosen at Aeolus, Aeolus, Lemnos, Olympus): ${fmt(g.synthesis)}`)
   if (v.reveal) {
     L.push('')
     L.push(`## 9. Tiresias' reveal: ${v.reveal.company}`)
@@ -133,10 +133,10 @@ export function IthacaEnd() {
           </div>
         </div>
         {[
-          ['Knowledge', g.knowledge, 'Quick checks: 1 point first try, 0.4 later (15%)'],
+          ['Knowledge', g.knowledge, 'Quick checks: 1 point first try, 0.4 second, then 0 (10%)'],
           ['Framing', g.framing, 'Troy (10%)'],
-          ['Application', g.application, 'Your fourteen island answers (40%)'],
-          ['Synthesis', g.synthesis, 'Aeolus, Lemnos, Olympus (35%)'],
+          ['Exploration', g.application, 'The fourteen islands, lightly weighted (20%)'],
+          ['Focus', g.synthesis, 'Your two chosen ideas, Aeolus, Lemnos and Olympus (60%)'],
         ].map(([label, val, sub]) => (
           <div className="bar-row" key={label as string} title={sub as string}>
             <span>{label as string}</span>

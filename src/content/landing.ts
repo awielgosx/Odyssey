@@ -73,8 +73,18 @@ export function emptyLanding(d: Direction): Landing {
   return a
 }
 
+// A reasoned "this direction doesn't fit my business" is a legitimate outcome of the method.
+export const isNoFit = (a: Landing | undefined) => a?._mode === 'nofit'
+export const NOFIT_MIN = 15
+
 export function missingFor(d: Direction, a: Landing): string[] {
   const out: string[] = []
+  if (isNoFit(a)) {
+    const t = String(a.nofit ?? '')
+    if (words(t) < NOFIT_MIN) out.push(`Explain in at least ${NOFIT_MIN} words why this direction does not fit, and what would have to change for it to fit.`)
+    if (junkFields([t])) out.push('Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.')
+    return out
+  }
   d.steps.forEach((s, i) => {
     const n = d.steps.length > 1 ? `${i + 1}. ` : ''
     const v = a[s.id]
@@ -116,6 +126,7 @@ const show = (v: LandingValue | undefined): string => {
 // One line that captures the idea, for Aeolus and the Captain's Log
 export function summaryOf(d: Direction, a: Landing | undefined): string {
   if (!a) return ''
+  if (isNoFit(a)) return `Does not fit: ${String(a.nofit ?? '').trim()}`
   const main = d.steps.find((s) => s.id === d.main)
   if (!main) return show(a[d.main])
   if (main.kind === 'slots') {
@@ -131,6 +142,7 @@ export function summaryOf(d: Direction, a: Landing | undefined): string {
 
 // Question-and-answer lines for the coach and the log
 export function flattenLanding(d: Direction, a: Landing): string {
+  if (isNoFit(a)) return `NO FIT: the student argues this direction does not fit their business.\nWhy it does not fit, and what would have to change for it to fit:\n- ${String(a.nofit ?? '').trim()}`
   return d.steps
     .map((s) => {
       if (s.kind === 'slots') {

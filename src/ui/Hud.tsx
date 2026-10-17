@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { audio } from '../audio/engine'
 import { directionById } from '../content/directions'
 import { voyageById } from '../content/voyages'
-import { finalGrade, laurels, stopComplete, useGame } from '../store'
+import { finalGrade, freeTravel, laurels, stopComplete, useGame } from '../store'
 import { STOPS } from '../world/layout'
 import { Athena, type Mood } from './Athena'
 
@@ -10,9 +10,11 @@ import { Athena, type Mood } from './Athena'
 export function Ribbon() {
   const s = useGame()
   const v = voyageById(s.voyageId)
+  const free = freeTravel(s)
   const go = (i: number) => {
-    if (i > s.furthest + 1) return
-    if (i === s.furthest + 1 && !stopComplete(s, s.furthest)) {
+    if (i === s.stopIndex) return
+    if (!free && i > s.furthest + 1) return
+    if (!free && i === s.furthest + 1 && !stopComplete(s, s.furthest)) {
       s.say(`Finish the task at ${STOPS[s.furthest].label} before sailing on.`)
       return
     }
@@ -26,7 +28,7 @@ export function Ribbon() {
     const landed = d && (s.landings[d.id]?.grades.length ?? 0) > 0
     const title = d ? `Direction ${d.id}: ${d.name} (${d.pillar === 'proposition' ? 'value proposition' : 'value architecture'})` : stop.label
     return (
-      <button key={stop.key} className={`rb ${state} ${d ? '' : 'named'}`} title={title} aria-label={title} aria-current={state === 'current'} disabled={state === 'locked'} onClick={() => go(i)}>
+      <button key={stop.key} className={`rb ${state} ${d ? '' : 'named'}`} title={title} aria-label={title} aria-current={state === 'current'} disabled={state === 'locked' && !free} onClick={() => go(i)}>
         {d ? d.id : stop.label === 'The Narrows' ? '≈' : stop.label}
         {landed && <span className="laurel">{'❦'}</span>}
       </button>
@@ -62,7 +64,7 @@ export function TopRight() {
     <div className="hud-right">
       <span
         className="chip static"
-        title={`Laurels earned: ${n}. Voyage score so far: ${g.outOf20}/20 (knowledge ${Math.round(g.knowledge * 100)}%, Troy ${Math.round(g.framing * 100)}%, islands ${Math.round(g.application * 100)}%, synthesis ${Math.round(g.synthesis * 100)}%).`}
+        title={`Laurels earned: ${n}. Voyage score so far: ${g.outOf20}/20 (knowledge 10%: ${Math.round(g.knowledge * 100)}%, Troy 10%: ${Math.round(g.framing * 100)}%, exploration 20%: ${Math.round(g.application * 100)}%, focus 60%: ${Math.round(g.synthesis * 100)}%).`}
       >
         {'❦'} {n} <span className="score-mini">{g.outOf20}/20</span>
       </span>
@@ -228,7 +230,8 @@ export function Nav() {
           {'←'} Previous stop
         </button>
       )}
-      {nextStop && (
+      {/* once a stop is done, the "Sail on" button inside the panel takes over (except on the full map) */}
+      {nextStop && (!canNext || s.chart) && (
         <button
           className={`btn primary ${canNext ? '' : 'waiting'}`}
           aria-disabled={!canNext}

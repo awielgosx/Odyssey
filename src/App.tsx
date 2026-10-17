@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { audio } from './audio/engine'
 import { directionById } from './content/directions'
 import { stopComplete, useGame } from './store'
+import { Briefing } from './ui/Briefing'
 import { Celebration } from './ui/Celebration'
 import { IthacaEnd } from './ui/End'
 import { Coach, Nav, Ribbon, Toast, TopRight, useKeys } from './ui/Hud'
@@ -49,6 +50,7 @@ export default function App() {
   const phase = useGame((s) => s.phase)
   const chart = useGame((s) => s.chart)
   const celebrate = useGame((s) => s.phase === 'play' && !s.sailing && s.stopIndex === STOPS.length - 1 && !s.celebrated)
+  const brief = useGame((s) => s.phase === 'play' && !s.sailing && s.stopIndex === 1 && !s.briefed)
   useKeys()
   useEffect(() => {
     // a reload mid-voyage returns to the title so audio can start on a click
@@ -70,6 +72,7 @@ export default function App() {
         </>
       )}
       {celebrate && <Celebration />}
+      {brief && <Briefing />}
       <Toast />
       {phase === 'title' && <Title />}
       {phase === 'intro' && <Intro />}
