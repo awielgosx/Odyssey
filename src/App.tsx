@@ -46,6 +46,9 @@ function PanelNext() {
   )
 }
 
+// Dev-only switch for automated UI testing on machines without a GPU: ?no3d=1 skips the 3D scene.
+const NO3D = import.meta.env.DEV && new URLSearchParams(location.search).has('no3d')
+
 export default function App() {
   const phase = useGame((s) => s.phase)
   const chart = useGame((s) => s.chart)
@@ -59,7 +62,7 @@ export default function App() {
   }, [])
   return (
     <div className={`app ${chart ? 'charting' : ''}`}>
-      <World />
+      {NO3D ? <div className="no3d" /> : <World />}
       {phase === 'play' && (
         <>
           <header className="topbar">

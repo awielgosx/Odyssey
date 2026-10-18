@@ -2145,3 +2145,8 @@ label.field > span .count {
 .score-split span:nth-child(4) {
   background: var(--clay);
 }
+.no3d {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #efc29a 0%, #2f6f86 45%, #0b3f5c 100%);
+}
