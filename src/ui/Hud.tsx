@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { audio } from '../audio/engine'
 import { directionById } from '../content/directions'
 import { voyageById } from '../content/voyages'
-import { finalGrade, freeTravel, laurels, stopComplete, useGame } from '../store'
+import { finalGrade, freeTravel, laurels, revisingHere, stopComplete, useGame } from '../store'
 import { STOPS } from '../world/layout'
 import { Athena, type Mood } from './Athena'
 
@@ -15,7 +15,8 @@ export function Ribbon() {
     if (i === s.stopIndex) return
     if (!free && i > s.furthest + 1) return
     if (!free && i === s.furthest + 1 && !stopComplete(s, s.furthest)) {
-      s.say(`Finish the task at ${STOPS[s.furthest].label} before sailing on.`)
+      const at = STOPS[s.furthest]
+      s.say(`Finish ${at.directionId ? `island ${at.directionId} (${directionById(at.directionId).short.toLowerCase()})` : at.label} before sailing on.`)
       return
     }
     audio.click()
@@ -36,8 +37,13 @@ export function Ribbon() {
   }
   const pStart = STOPS.findIndex((x) => x.directionId === 1)
   const aStart = STOPS.findIndex((x) => x.directionId === 8)
+  const nav = useRef<HTMLElement>(null)
+  // on narrow screens the ribbon scrolls: keep the current stop in view
+  useEffect(() => {
+    nav.current?.querySelector<HTMLElement>('.rb.current')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [s.stopIndex])
   return (
-    <nav className="ribbon parchment" aria-label={`Voyage of ${v.ship}`}>
+    <nav className="ribbon parchment" aria-label={`Voyage of ${v.ship}`} ref={nav}>
       {btn(0)}
       <span className="rb-sea p" title="Sea of the Value Proposition: directions 1 to 7">
         {STOPS.slice(pStart, pStart + 7).map((_, k) => btn(pStart + k))}
@@ -54,8 +60,21 @@ export function Ribbon() {
 export function TopRight() {
   const s = useGame()
   const [menu, setMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const n = laurels(s)
   const g = finalGrade(s)
+  useEffect(() => {
+    if (!menu) return
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false)
+    const click = (e: PointerEvent) => !menuRef.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest?.('.menu-btn') && setMenu(false)
+    window.addEventListener('keydown', key)
+    window.addEventListener('pointerdown', click)
+    menuRef.current?.querySelector<HTMLElement>('button')?.focus()
+    return () => {
+      window.removeEventListener('keydown', key)
+      window.removeEventListener('pointerdown', click)
+    }
+  }, [menu])
   useEffect(() => {
     audio.setMuted(!s.sound)
     audio.setWax(s.wax)
@@ -64,9 +83,15 @@ export function TopRight() {
     <div className="hud-right">
       <span
         className="chip static"
-        title={`Laurels earned: ${n}. Voyage score so far: ${g.outOf20}/20 (knowledge 10%: ${Math.round(g.knowledge * 100)}%, Troy 10%: ${Math.round(g.framing * 100)}%, exploration 20%: ${Math.round(g.application * 100)}%, focus 60%: ${Math.round(g.synthesis * 100)}%).`}
+        tabIndex={0}
+        aria-label={`Voyage score so far ${g.outOf20} out of 20. ${n} laurels earned.${g.pending ? ` ${g.pending} answers wait for Athena's review.` : ''}`}
+        title={`Voyage score so far: ${g.outOf20}/20 (knowledge 10%: ${Math.round(g.knowledge * 100)}%, Troy 10%: ${Math.round(g.framing * 100)}%, exploration 20%: ${Math.round(g.application * 100)}%, focus 60%: ${Math.round(g.synthesis * 100)}%). Laurels: ${n}, one per point Athena gives and per quick check right first time.${g.pending ? ` ${g.pending} answers have a provisional estimate and wait for Athena's review.` : ''}`}
       >
-        {'❦'} {n} <span className="score-mini">{g.outOf20}/20</span>
+        <span className="score-mini">{g.outOf20}/20</span>
+        {g.pending > 0 && <span className="pending-dot" aria-hidden="true">{g.pending} pending</span>}
+        <span className="laurel-mini" aria-hidden="true">
+          {'❦'} {n}
+        </span>
       </span>
       <span className="chip" style={{ gap: 8 }}>
         <button
@@ -94,15 +119,15 @@ export function TopRight() {
       <button className="chip" aria-pressed={s.chart} onClick={() => s.set({ chart: !s.chart })}>
         {s.chart ? 'Back to ship' : 'Full map'}
       </button>
-      <button className="chip" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+      <button className="chip menu-btn" aria-expanded={menu} aria-haspopup="true" onClick={() => setMenu(!menu)}>
         Menu
       </button>
       {menu && (
-        <div className="menu parchment">
+        <div className="menu parchment" ref={menuRef}>
           <button className="btn small" onClick={() => (s.set({ phase: 'intro', introStep: 0 }), setMenu(false))}>
             How to play
           </button>
-          <button className="btn small" onClick={() => s.set({ quality: s.quality === 'high' ? 'low' : 'high' })}>
+          <button className="btn small" aria-pressed={s.quality === 'high'} onClick={() => s.set({ quality: s.quality === 'high' ? 'low' : 'high' })}>
             Graphics: {s.quality === 'high' ? 'cinematic' : 'fast'}
           </button>
           <button
@@ -116,7 +141,7 @@ export function TopRight() {
           >
             Start a new voyage
           </button>
-          <small className="count">Progress is saved in this browser.</small>
+          <small className="count">Progress is saved in this browser. Shortcuts (outside text boxes): N next stop, P previous stop, M full map.</small>
         </div>
       )}
     </div>
@@ -184,7 +209,10 @@ export function Coach() {
     }
   if (!s.sailing && last) {
     const fb = (last as { feedback?: string }).feedback?.split(/(?<=[.!?])\s/)[0] ?? ''
-    if (last.total === 0) {
+    const estimate = (last as { source?: string }).source === 'estimate'
+    if (estimate) {
+      line = `${last.total}/${last.max}, provisional: I could not read it properly just now. Ask me again, improve it, or sail on and send it from Ithaca.`
+    } else if (last.total === 0) {
       mood = 'stern'
       line = 'Zero laurels. This would not survive a single customer: rewrite it before we sail on.'
     } else if (ratio !== null && ratio < 0.5) {
@@ -197,19 +225,28 @@ export function Coach() {
   }
   if (folded)
     return (
-      <button className="coach-fold" onClick={() => setFolded(false)} aria-label="Show Athena">
+      <button className="coach-fold" onClick={() => setFolded(false)} aria-label="Show Athena" title="Show Athena">
         <Athena mood={mood} size={64} />
       </button>
     )
   return (
-    <div className="coach" aria-live="polite">
-      <Athena mood={mood} size={124} />
+    <div className="coach">
+      <span aria-hidden="true">
+        <Athena mood={mood} size={124} />
+      </span>
       <div className="bubble parchment" key={line}>
-        <button className="coach-hide" aria-label="Fold Athena away" onClick={() => setFolded(true)}>
+        <button
+          className="coach-hide"
+          aria-label="Hide Athena"
+          onClick={() => {
+            setFolded(true)
+            requestAnimationFrame(() => document.querySelector<HTMLElement>('.coach-fold')?.focus())
+          }}
+        >
           {'–'}
         </button>
         <b>{title}</b>
-        <span>{line}</span>
+        <span aria-live="polite">{line}</span>
         {tip && <span className="coach-tip">{tip}</span>}
       </div>
     </div>
@@ -220,7 +257,8 @@ export function Nav() {
   const s = useGame()
   if (s.sailing) return null
   const next = s.stopIndex + 1
-  const canNext = next < STOPS.length && stopComplete(s, s.stopIndex)
+  const revising = revisingHere(s)
+  const canNext = next < STOPS.length && stopComplete(s, s.stopIndex) && !revising
   const nextStop = STOPS[next]
   const label = nextStop ? (nextStop.directionId ? `${nextStop.directionId} · ${directionById(nextStop.directionId).short}` : nextStop.label) : ''
   return (
@@ -241,7 +279,9 @@ export function Nav() {
               const rec = stop.kind === 'troy' ? s.troy : stop.kind === 'island' ? s.landings[stop.directionId!] : stop.kind === 'aeolus' ? s.aeolus : stop.kind === 'lemnos' ? s.lemnos : stop.kind === 'olympus' ? s.olympus : null
               const zero = !!rec?.grades.length && rec.grades[rec.grades.length - 1].total === 0
               s.say(
-                zero
+                revising
+                  ? 'You are revising this answer: submit it to Athena, or cancel the revision, before sailing on.'
+                  : zero
                   ? 'Athena gave this zero laurels. Rewrite your answer and resubmit it before you sail on.'
                   : stop.kind === 'troy'
                   ? 'First submit Troy to Athena: the button is at the bottom of the panel on the right.'
@@ -272,30 +312,50 @@ export function Toast() {
   const set = useGame((s) => s.set)
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => set({ toast: null }), 6500)
+    const t = setTimeout(() => set({ toast: null }), Math.max(8000, toast.text.length * 90))
     return () => clearTimeout(t)
   }, [toast, set])
   if (!toast) return null
   return (
-    <div className="toast parchment" role="status" key={toast.id} onClick={() => set({ toast: null })}>
-      {toast.text}
+    <div className="toast parchment" role="status" key={toast.id}>
+      <span>{toast.text}</span>
+      <button type="button" className="toast-x" aria-label="Dismiss message" onClick={() => set({ toast: null })}>
+        {'×'}
+      </button>
     </div>
   )
 }
 
-// keyboard: N next, P previous, M chart
+// keyboard: N next, P previous, M chart. Never while the player is typing or reading a dialog:
+// a stray "m" or "p" in the export's editable text used to close it and lose the edits.
+let lastTyped = 0
 export function useKeys() {
   useEffect(() => {
+    const typed = () => (lastTyped = Date.now())
     const on = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable || el?.getAttribute?.('role') === 'slider') return
+      // a field that was just disabled (after submitting) drops focus to the page: ignore keys for a moment
+      if (Date.now() - lastTyped < 2500) return
+      if (document.querySelector('.export-root, [role="dialog"], .celebrate, .overlay')) return
       const s = useGame.getState()
       if (s.phase !== 'play') return
-      if (e.key === 'n' && stopComplete(s, s.stopIndex)) s.sailTo(s.stopIndex + 1)
-      if (e.key === 'p') s.sailTo(s.stopIndex - 1)
-      if (e.key === 'm') s.set({ chart: !s.chart })
+      const k = e.key.toLowerCase()
+      if (k === 'n') {
+        if (revisingHere(s)) s.say('Finish or cancel your revision first.')
+        else if (stopComplete(s, s.stopIndex)) s.sailTo(s.stopIndex + 1)
+        else s.say('Finish this stop first: the task is in the panel.')
+      }
+      if (k === 'p') s.sailTo(s.stopIndex - 1)
+      if (k === 'm') s.set({ chart: !s.chart })
     }
     window.addEventListener('keydown', on)
-    return () => window.removeEventListener('keydown', on)
+    window.addEventListener('input', typed, true)
+    return () => {
+      window.removeEventListener('keydown', on)
+      window.removeEventListener('input', typed, true)
+    }
   }, [])
 }

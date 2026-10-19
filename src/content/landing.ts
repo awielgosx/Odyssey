@@ -13,6 +13,7 @@ export interface NarrowsAnswer {
 
 export interface StepContext {
   attributes: string[]
+  lowerable?: string[] // attributes above the lowest level, which can still be lowered
   chain: string[]
   resources: string[]
 }
@@ -25,9 +26,12 @@ export const OTHER = 'Other: '
 export const isOther = (v: unknown) => typeof v === 'string' && v.startsWith(OTHER)
 export const stripOther = (v: string) => (isOther(v) ? v.slice(OTHER.length) : v)
 
-// Placeholder or keyboard-mash text ("test test test", "asdf", "lorem ipsum", "xxx"):
-// caught before Athena is asked, so it can never earn points.
-const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'lorem', 'ipsum', 'dolor', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'idk', 'dunno', 'something', 'stuff', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'yes', 'no'])
+// Placeholder or keyboard-mash text ("test test test", "asdf", "lorem ipsum", "xxx", "sdfkjh qweoiu"):
+// caught before Athena is asked, so it can never earn points. Mirrored in api/coach.ts.
+const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'azerty', 'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit', 'sed', 'eiusmod', 'tempor', 'incididunt', 'labore', 'magna', 'aliqua', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'baz', 'idk', 'dunno', 'something', 'stuff', 'whatever', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'okay', 'yes', 'no', 'answer', 'here', 'random', 'text', 'word', 'words'])
+const KEYS = ['qwer', 'wert', 'erty', 'asdf', 'sdfg', 'dfgh', 'fghj', 'ghjk', 'hjkl', 'zxcv', 'xcvb', 'cvbn', 'vbnm', 'azer', 'qsdf', 'uiop', 'yuio', 'jkl;']
+// a "word" no language would produce: five consonants in a row, a keyboard run, or a repeated chunk ("asdasd")
+const gibberish = (w: string) => w.length >= 4 && (/[bcdfghjklmnpqrstvwxz]{5,}/.test(w) || KEYS.some((k) => w.includes(k)) || /^(.{2,4})\1+.?$/.test(w))
 export function isJunk(text: string): boolean {
   const ws = (text.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).filter(Boolean)
   if (!ws.length) return false
@@ -38,8 +42,22 @@ export function isJunk(text: string): boolean {
   const letters = ws.join('')
   if (letters.length >= 8 && !/[aeiouy]/.test(letters)) return true // no vowels: keyboard mash
   if (ws.some((w) => w.length > 25)) return true
+  const long = ws.filter((w) => w.length >= 4)
+  if (long.length && long.filter(gibberish).length / long.length >= 0.4) return true
   return false
 }
+
+// Content words, for spotting copied text
+const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'your', 'you', 'our', 'their', 'they', 'what', 'which', 'who', 'how', 'into', 'would', 'could', 'more', 'less', 'than', 'have', 'has', 'are', 'was', 'were', 'will', 'can', 'its', 'it’s', 'one', 'not', 'but', 'all', 'any', 'out', 'about'])
+const contentWords = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w))
+// share of the answer's content words that also appear in the reference text
+export function overlap(answer: string, reference: string): number {
+  const a = contentWords(answer)
+  if (a.length < 6) return 0
+  const ref = new Set(contentWords(reference))
+  return a.filter((w) => ref.has(w)).length / a.length
+}
+
 export function junkFields(values: string[]): boolean {
   return values.some((v) => v.trim() && isJunk(v))
 }
@@ -51,6 +69,8 @@ export function optionsFor(step: Step, ctx: StepContext): string[] {
   switch (step.source) {
     case 'attributes':
       return clean(ctx.attributes)
+    case 'lowerable':
+      return clean(ctx.lowerable ?? ctx.attributes)
     case 'chain':
       return clean(ctx.chain)
     case 'resources':
@@ -79,14 +99,19 @@ export const NOFIT_MIN = 15
 
 export function missingFor(d: Direction, a: Landing): string[] {
   const out: string[] = []
+  const source = [d.caseText, d.definition, d.quiz.question, ...d.quiz.options, ...d.steps.map((s) => s.label)].join(' ')
+  const copied = (t: string) => overlap(t, source) >= 0.75
   if (isNoFit(a)) {
     const t = String(a.nofit ?? '')
     if (words(t) < NOFIT_MIN) out.push(`Explain in at least ${NOFIT_MIN} words why this direction does not fit, and what would have to change for it to fit.`)
     if (junkFields([t])) out.push('Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.')
+    else if (copied(t)) out.push('This reads like the case or the question copied back. Say it in your own words, about your business.')
     return out
   }
   d.steps.forEach((s, i) => {
-    const n = d.steps.length > 1 ? `${i + 1}. ` : ''
+    // name the question, so the player knows which box to fix
+    const q = s.label.length > 48 ? `${s.label.slice(0, 46).replace(/\s+\S*$/, '')}…` : s.label
+    const n = d.steps.length > 1 ? `Question ${i + 1} (“${q}”): ` : ''
     const v = a[s.id]
     if (s.kind === 'pick' && !v) out.push(`${n}Pick one option.`)
     if (s.kind === 'pick' && isOther(v) && words(stripOther(String(v))) < 1) out.push(`${n}Say what “something else” is.`)
@@ -113,6 +138,7 @@ export function missingFor(d: Direction, a: Landing): string[] {
     return []
   })
   if (junkFields(texts)) out.push('Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.')
+  else if (copied(texts.join(' '))) out.push('This reads like the case or the question copied back. Say it in your own words, about your business.')
   return out
 }
 
@@ -140,9 +166,27 @@ export function summaryOf(d: Direction, a: Landing | undefined): string {
   return show(a[main.id])
 }
 
+// The idea alone, without the label of the step it came from: what Aeolus prefills
+export function ideaOf(d: Direction, a: Landing | undefined): string {
+  if (!a || isNoFit(a)) return ''
+  const main = d.steps.find((s) => s.id === d.main)
+  if (main?.kind === 'slots') {
+    const arr = (a[main.id] as string[]) ?? []
+    return (main.slots.length === 2 ? arr[1] ?? '' : arr.filter(Boolean).join('; ')).trim()
+  }
+  return show(a[d.main])
+}
+
+// Lower-case a leading capital so a fragment reads mid-sentence ("Truck drivers" -> "truck drivers"),
+// but keep acronyms and names ("BMW", "IONITY", "iPhone").
+export function midSentence(t: string): string {
+  const x = t.trim().replace(/[.;:]+$/, '')
+  return /^[A-Z]([a-z]|\s)/.test(x) && !/^I\s/.test(x) && !/^[A-Z][a-z]+[A-Z]/.test(x) ? x[0].toLowerCase() + x.slice(1) : x
+}
+
 // Question-and-answer lines for the coach and the log
 export function flattenLanding(d: Direction, a: Landing): string {
-  if (isNoFit(a)) return `NO FIT: the student argues this direction does not fit their business.\nWhy it does not fit, and what would have to change for it to fit:\n- ${String(a.nofit ?? '').trim()}`
+  if (isNoFit(a)) return `NO FIT: this direction does not fit our business.\nWhy it does not fit, and what would have to change for it to fit:\n- ${String(a.nofit ?? '').trim()}`
   return d.steps
     .map((s) => {
       if (s.kind === 'slots') {

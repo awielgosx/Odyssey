@@ -22,31 +22,41 @@ export function ValueCurveEditor({
   max = 8,
   referenceLabel = 'Troy today',
   currentLabel = 'Your offer today',
+  minLevel = 1,
+  addLabel = '+ Add an attribute',
 }: {
   attributes: Attribute[]
   onChange: (a: Attribute[]) => void
   reference?: number[]
-  editableNames: boolean
+  // true: every name can be edited; a number: only names from that index on (new attributes at the forge)
+  editableNames: boolean | number
   min?: number
   max?: number
   referenceLabel?: string
   currentLabel?: string
+  // 0 lets an attribute be eliminated altogether (Blue Ocean "eliminate"), used at the forge
+  minLevel?: number
+  addLabel?: string
 }) {
   const svg = useRef<SVGSVGElement>(null)
   const drag = useRef<number | null>(null)
   const n = attributes.length
   const step = (W - PAD_L - PAD_R) / Math.max(1, n - 1)
   const x = (i: number) => (n === 1 ? (W - PAD_L - PAD_R) / 2 + PAD_L : PAD_L + i * step)
-  const y = (v: number) => PAD_T + (5 - v) * ((H - PAD_T - PAD_B) / 4)
+  const span = 5 - minLevel
+  const LEVELS = Array.from({ length: span + 1 }, (_, k) => minLevel + k)
+  const y = (v: number) => PAD_T + (5 - v) * ((H - PAD_T - PAD_B) / span)
+  const editableAt = (i: number) => (typeof editableNames === 'number' ? i >= editableNames : editableNames)
+  const anyEditable = typeof editableNames === 'number' ? true : editableNames
   const path = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${x(i)},${y(v)}`).join(' ')
   const setLevel = (i: number, level: number) => {
-    const l = Math.max(1, Math.min(5, Math.round(level)))
+    const l = Math.max(minLevel, Math.min(5, Math.round(level)))
     if (attributes[i].level !== l) onChange(attributes.map((a, j) => (j === i ? { ...a, level: l } : a)))
   }
   const levelAt = (clientY: number) => {
     const r = svg.current!.getBoundingClientRect()
     const py = ((clientY - r.top) / r.height) * H
-    return 5 - ((py - PAD_T) / (H - PAD_T - PAD_B)) * 4
+    return 5 - ((py - PAD_T) / (H - PAD_T - PAD_B)) * span
   }
   const levels = attributes.map((a) => a.level)
   return (
@@ -64,9 +74,9 @@ export function ValueCurveEditor({
           5
         </text>
         <text x={8} y={H - PAD_B + 4} className="vc-axis">
-          1
+          {minLevel}
         </text>
-        {[1, 2, 3, 4, 5].map((v) => (
+        {LEVELS.map((v) => (
           <line key={v} x1={PAD_L - 14} x2={W - PAD_R + 14} y1={y(v)} y2={y(v)} className="vc-grid" />
         ))}
         {attributes.map((_, i) => (
@@ -74,7 +84,7 @@ export function ValueCurveEditor({
         ))}
         {/* click targets: one per level per column */}
         {attributes.map((_, i) =>
-          [1, 2, 3, 4, 5].map((v) => <rect key={`${i}-${v}`} x={x(i) - step / 2} y={y(v) - (H - PAD_T - PAD_B) / 8} width={Math.max(30, step)} height={(H - PAD_T - PAD_B) / 4} className="vc-hit" onClick={() => setLevel(i, v)} />),
+          LEVELS.map((v) => <rect key={`${i}-${v}`} x={x(i) - step / 2} y={y(v) - (H - PAD_T - PAD_B) / (2 * span)} width={Math.max(30, step)} height={(H - PAD_T - PAD_B) / span} className="vc-hit" onClick={() => setLevel(i, v)} />),
         )}
         {reference && <path d={path(reference)} className="vc-ref" />}
         {reference?.map((v, i) => <circle key={`r${i}`} cx={x(i)} cy={y(v)} r="5" className="vc-ref-dot" />)}
@@ -88,8 +98,9 @@ export function ValueCurveEditor({
               className="vc-dot"
               tabIndex={0}
               role="slider"
-              aria-label={attributes[i].name || `Attribute ${i + 1}`}
-              aria-valuemin={1}
+              aria-label={attributes[i].name ? `${attributes[i].name}` : `Attribute ${i + 1} (not named yet)`}
+              aria-valuemin={minLevel}
+              aria-valuetext={v === 0 ? 'eliminated' : `${v} of 5`}
               aria-valuemax={5}
               aria-valuenow={v}
               onPointerDown={(e) => {
@@ -101,18 +112,20 @@ export function ValueCurveEditor({
               onKeyDown={(e) => {
                 if (e.key === 'ArrowUp' || e.key === 'ArrowRight') (e.preventDefault(), setLevel(i, v + 1))
                 if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') (e.preventDefault(), setLevel(i, v - 1))
+                if (e.key === 'Home' || e.key === 'PageDown') (e.preventDefault(), setLevel(i, minLevel))
+                if (e.key === 'End' || e.key === 'PageUp') (e.preventDefault(), setLevel(i, 5))
               }}
             />
             <text x={x(i)} y={y(v) + 4} className="vc-dot-label">
-              {v}
+              {v === 0 ? '×' : v}
             </text>
           </g>
         ))}
       </svg>
-      <div className={`vc-names ${editableNames ? 'edit' : ''}`}>
+      <div className={`vc-names ${anyEditable ? 'edit' : ''}`}>
         {attributes.map((a, i) => {
           const pos = { left: `${(x(i) / W) * 100}%`, width: `${(Math.min(n > 1 ? step - 6 : 160, 150) / W) * 100}%` }
-          return editableNames ? (
+          return editableAt(i) ? (
             <span key={i} className="vc-name-edit" style={pos}>
               <textarea
                 rows={2}
@@ -128,7 +141,7 @@ export function ValueCurveEditor({
               )}
             </span>
           ) : (
-            <span key={i} className="vc-name" style={pos}>
+            <span key={i} className="vc-name" style={pos} title={a.name}>
               {a.name || `Attribute ${i + 1}`}
             </span>
           )
@@ -139,9 +152,9 @@ export function ValueCurveEditor({
           {reference && <span className="vc-key ref">{referenceLabel}</span>}
           <span className="vc-key cur">{currentLabel}</span>
         </span>
-        {editableNames && n < max && (
+        {anyEditable && n < max && (
           <button type="button" className="link-btn" onClick={() => onChange([...attributes, { name: '', level: 3 }])}>
-            + Add an attribute ({n}/{max})
+            {addLabel} ({n}/{max})
           </button>
         )}
       </div>

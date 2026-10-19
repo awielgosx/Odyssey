@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { audio } from '../audio/engine'
 import { finalGrade, useGame } from '../store'
 import { Athena } from './Athena'
+import { prefersReducedMotion, useDialog } from './common'
 
 const COLORS = ['#d9a23e', '#c4562c', '#1d1714', '#efe6d4', '#7a8a3a', '#9a3f1c', '#e2c27a']
 
@@ -85,27 +86,37 @@ function Confetti() {
   return <canvas ref={ref} className="confetti" aria-hidden="true" />
 }
 
+// "Ana", "Ana and Ben", "Ana, Ben and Chloé"
+const names = (xs: string[]) => (xs.length <= 1 ? xs[0] ?? 'captain' : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
+
 export function Celebration() {
   const s = useGame()
   const g = finalGrade(s)
+  const ref = useRef<HTMLDivElement>(null)
+  const still = prefersReducedMotion()
   useEffect(() => {
     audio.fanfare()
   }, [])
   const close = () => s.set({ celebrated: true })
+  useDialog(ref, close)
+  const crew = [s.captain, ...(s.crew ?? [])].filter(Boolean)
   return (
-    <div className="celebrate" role="dialog" aria-label="Welcome home">
-      <Confetti />
+    <div className="celebrate" role="dialog" aria-modal="true" aria-labelledby="home-title" ref={ref}>
+      {!still && <Confetti />}
       <div className="celebrate-card parchment">
         <div className="meander-band" />
         <div className="celebrate-body">
-          <Athena mood="pleased" size={210} />
+          <span aria-hidden="true">
+            <Athena mood="pleased" size={210} />
+          </span>
           <div>
-            <h2>Welcome home, {s.captain}!</h2>
+            <h2 id="home-title">Welcome home, {names(crew)}!</h2>
             <p>
-              You sailed from Troy past all fourteen islands, held your plan together before Aeolus, forged a new business model and stood before the gods. Argos recognised you first. So do I.
+              {crew.length > 1 ? 'Together you sailed' : 'You sailed'} from Troy past all fourteen islands, held your plan together before Aeolus, forged a new business model and stood before the gods. Argos recognised you first. So do I.
             </p>
             <p className="celebrate-score">
               Voyage score <b>{g.outOf20}/20</b> · {g.polytropos ? 'Polytropos, the man of many turns' : g.rank}
+              {g.pending > 0 && <small className="count"> ({g.pending} answers still wait for Athena’s review: send them from the panel to firm up your score)</small>}
             </p>
             <p>
               <b>What now?</b>
@@ -113,9 +124,9 @@ export function Celebration() {
             <ol>
               <li>Export your assignment as a PDF: choose the Contemporary or the Scholar style, add your full names and group, and edit any sentence before saving.</li>
               <li>Download the full Captain’s Log if you want every answer and review.</li>
-              <li>Read your weakest review again: that is where your model is most likely to fail in real life.</li>
+              <li>Then run your Olympus test for real: the riskiest assumption is where your model is most likely to fail.</li>
             </ol>
-            <button className="btn primary" onClick={close}>
+            <button className="btn primary" data-autofocus onClick={close}>
               See my results
             </button>
           </div>

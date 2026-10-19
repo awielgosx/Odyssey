@@ -7,11 +7,11 @@ import type { Voyage } from './voyages'
 interface Demo {
   landings: Record<number, Landing>
   aeolus: { p: number; a: number; promise: string; enabler: string; link: string; who: string; gain: string }
-  lemnos: { name: string; pitch: string; curve: number[]; zone: string; indicators: Record<string, string>; antagonism: string }
-  olympus: { god: string; answer: string; assumption: string; mvp: string; stake: string }
+  lemnos: { name: string; pitch: string; curve: number[]; added?: { name: string; level: number }[]; chain: string[]; price: string; zone: string; indicators: Record<string, string>; antagonism: string }
+  olympus: { god: string; answer: string; hypotheses: { p: string; a: string; c: string }; riskiest: 'p' | 'a' | 'c'; assumption: string; mvp: string; stake: string }
 }
 
-const VRIO = { v: 'Valuable to customers', r: 'Rare among competitors', i: 'Hard to imitate', u: 'Under-used today' }
+const VRIO = { v: 'Valuable to customers', r: 'Rare among competitors', i: 'Hard to imitate', o: 'Organised to exploit it', u: 'Under-used today' }
 
 function phone(v: Voyage): Demo {
   const c = v.chain!
@@ -34,7 +34,7 @@ function phone(v: Voyage): Demo {
       11: { input: 'Materials', pair: ['Gold, tin and cobalt bought on world markets, with unclear mining conditions', 'Fairtrade gold and recycled tin from our own take-back scheme: costlier per gram, but traceable and lower impact'] },
       12: { type: 'A supplier', deal: ['A certified fair-trade mining cooperative', 'Traceable conflict-free minerals and a story buyers trust', 'A guaranteed premium price and a multi-year purchase contract'] },
       13: { needs: 'A mobile plan, a case, insurance and somewhere to recycle the old phone', idea: 'With a mobile operator, we bundle the phone into a plan with free part replacements; customers get one simple contract and the operator gets loyal long-term subscribers.' },
-      14: { resource: r[1], vrio: [VRIO.v, VRIO.i], idea: 'We license our long-term software support to other hardware makers who want devices updated for eight years: new service revenue from know-how we already have.' },
+      14: { resource: r[1], vrio: [VRIO.v, VRIO.i, VRIO.o], idea: 'We license our software design know-how to other hardware makers who want their devices supported for eight years: new service revenue from expertise we already have.' },
     },
     aeolus: {
       p: 7,
@@ -49,13 +49,21 @@ function phone(v: Voyage): Demo {
       name: 'Keepphone',
       pitch: 'For buyers tired of disposable phones, Keepphone offers a repairable, fairly sourced smartphone leased at a price that falls every year, unlike Troy, because it is built to last.',
       curve: [3, 2, 5, 4, 5],
-      zone: 'high-end',
+      chain: ['Design modular hardware and software', 'Source fair and recycled materials', 'Assemble with screws at fairly paid suppliers', 'Lease directly online', 'Post spare parts and video guides', 'Buy back, refurbish and re-lease'],
+      price: 'A monthly lease of about €30 that falls by a fifth every year the customer keeps the same phone, instead of €800 upfront',
+      zone: 'game-changing',
       indicators: { revenue: '+', costs: '-', capital: '-', ghg: '+', pollutants: '+', resources: '+', employability: '0', quality: '+', fairness: '+' },
       antagonism: 'Leasing and fair materials raise our costs and the capital tied up in phones, while the environmental gains only appear if customers really keep them five years.',
     },
     olympus: {
       god: 'poseidon',
       answer: 'An incumbent can copy screws, but not our contracts with fair mines, our refurbishing loop, or a brand built on not selling a new phone every year, which contradicts its own revenue model.',
+      hypotheses: {
+        p: 'Buyers will accept weaker specifications for a phone they keep five years',
+        a: 'Screwed, modular phones can be assembled at under 15% extra cost per unit',
+        c: 'Leased phones really stay in use five years, so the lease stays profitable',
+      },
+      riskiest: 'p',
       assumption: 'Buyers will accept weaker specifications for a phone they keep five years',
       mvp: 'A landing page offering a pre-order of the leased phone, with a spec comparison, promoted to 2,000 eco-minded students',
       stake: '5% of visitors pay a €20 refundable deposit within two weeks',
@@ -80,11 +88,11 @@ function luxury(v: Voyage): Demo {
       7: { model: 'Subscription', idea: 'We charge collectors an annual membership for first access to each new pop-up collection; they prefer it because they never miss a one-off piece, and it smooths our unpredictable sales.' },
       8: { step: c[2], idea: 'At quality control, we scan and catalogue every rejected material in a digital library, so designers can match offcuts to ideas and clients can see where their piece came from.' },
       9: { step: c[3], pair: ['Permanent flagship stores in the world’s capitals sell the standard collections', 'Short, staged pop-up exhibitions in a different city each season: cheaper than a store, and every visit feels like an event'] },
-      10: { move: `Remove: ${c[2]}`, idea: 'Without destroying flawed pieces, nothing is wasted: rejected materials go straight to the creative workshop, so the step becomes sorting instead of destroying.' },
+      10: { move: 'Add: refurbish and resell', idea: 'With this new step, we buy back pieces from clients, restore them in our workshops and resell them as certified heritage pieces; collectors pay for them, and the house earns twice on each object.' },
       11: { input: 'Materials', pair: ['Perfect leather, silk and crystal bought new from top suppliers', 'Offcuts and flawed materials from our own workshops: nearly free, they cut waste and give each object a story'] },
       12: { type: 'A supplier', deal: ['Our historic crystal manufacturer', 'Its own rejected pieces and its glass-working skills', 'First pick of our designs to sell in its own boutiques'] },
       13: { needs: 'Gift wrapping, an occasion to celebrate, and a place to display the piece at home', idea: 'With an interior designer, we stage each object in rooms shown at our exhibitions; clients see how to display their piece, and the designer meets wealthy new clients.' },
-      14: { resource: r[0], vrio: [VRIO.v, VRIO.r, VRIO.i, VRIO.u], idea: 'We open masterclasses where enthusiasts make a small object from offcuts with our artisans: an experience business built on know-how no rival can copy.' },
+      14: { resource: r[0], vrio: [VRIO.v, VRIO.r, VRIO.i, VRIO.o, VRIO.u], idea: 'We open masterclasses where enthusiasts make a small object from offcuts with our artisans: an experience business built on know-how no rival can copy.' },
     },
     aeolus: {
       p: 4,
@@ -99,12 +107,20 @@ function luxury(v: Voyage): Demo {
       name: 'Offcut Atelier',
       pitch: 'For design lovers who want what no one else owns, Offcut Atelier offers playful one-off objects made from the house’s rejected materials, unlike Troy, because waste becomes the source of uniqueness.',
       curve: [5, 4, 5, 4, 5],
+      chain: ['Collect offcuts and flawed pieces from our workshops', 'Catalogue them in a digital material library', 'Artists and artisans design one-off objects', 'Craft in in-house workshops', 'Sell in travelling pop-up exhibitions'],
+      price: 'One-off objects from €300 to €5,000, priced by piece, plus an annual collectors’ membership for first access',
       zone: 'high-end',
       indicators: { revenue: '+', costs: '+', capital: '0', ghg: '0', pollutants: '0', resources: '+', employability: '+', quality: '+', fairness: '0' },
       antagonism: 'One-off pieces are slow and costly to design, so the model stays small: the environmental gain is real but limited to the offcuts we produce.',
     },
     olympus: {
       god: 'hermes',
+      hypotheses: {
+        p: 'Clients will value objects made from rejected materials as highly as new pieces',
+        a: 'Our workshops produce enough usable offcuts for 300 objects a year',
+        c: 'Pop-ups sell enough at full price to cover the extra design time',
+      },
+      riskiest: 'p',
       answer: 'Clients already pay for scarcity: a piece that exists only once, signed by an artisan and made from the house’s own materials, is rarer than a standard bag. They give up only the ability to reorder it.',
       assumption: 'Clients will value objects made from rejected materials as highly as new pieces',
       mvp: 'A one-week, invitation-only pop-up of 40 objects in one city, with prices shown',
@@ -134,27 +150,36 @@ function dairy(v: Voyage): Demo {
       11: { input: 'Materials', pair: ['Raw milk from thousands of dairy farms, bought daily', 'Sugar from beet or by-products of other food factories, fed to microorganisms: steadier supply, far lower emissions per tonne of protein'] },
       12: { type: 'A competitor', deal: ['A large dairy cooperative', 'Its food-brand customers, plants and regulatory experience', 'A licence to our fermentation strains and a share of the margin'] },
       13: { needs: 'Other recipe ingredients, flavours, and application advice from food scientists', idea: 'With a flavour house, we offer ready recipe kits combining our protein and its flavours; food makers launch products faster, and the flavour house sells more.' },
-      14: { resource: r[2], vrio: [VRIO.v, VRIO.i], idea: 'We open an application lab where food brands co-develop new products with our scientists: a paid service built on decades of relationships and recipe knowledge.' },
+      14: { resource: r[2], vrio: [VRIO.v, VRIO.i, VRIO.o], idea: 'We open an application lab where food brands co-develop new products with our scientists: a paid service built on decades of relationships and recipe knowledge.' },
     },
     aeolus: {
       p: 3,
       a: 8,
-      promise: 'real dairy taste for vegan and lactose-intolerant consumers who avoid milk today',
+      promise: 'food brands can sell real dairy taste to the vegan and lactose-intolerant consumers who avoid milk today',
       enabler: 'precision fermentation replaces milk collection: microorganisms make whey from sugar',
-      link: 'Only fermentation makes a whey identical to milk’s without any animal or lactose, so people who refuse dairy can finally eat real dairy taste.',
-      who: 'vegan and lactose-intolerant consumers',
+      link: 'Only fermentation makes a whey identical to milk’s without any animal or lactose, so brands can put real dairy taste in products for people who refuse dairy.',
+      who: 'food brands serving vegan and lactose-intolerant consumers',
       gain: 'ghg',
     },
     lemnos: {
       name: 'Cowless Whey',
       pitch: 'For food brands that want dairy taste without cows, Cowless Whey offers milk-identical protein brewed by fermentation, unlike Troy, because it needs no herd, no seasons and far fewer emissions.',
       curve: [5, 2, 5, 4, 4],
+      added: [{ name: 'Price stability', level: 5 }],
+      chain: ['Buy sugar from beet and food by-products', 'Brew whey by precision fermentation', 'Separate, dry and package the protein', 'Co-develop recipes with food brands', 'Ship from plants next to food factories'],
+      price: 'A fixed price per tonne about 30% above dairy whey, on three-year contracts that do not follow milk markets',
       zone: 'high-end',
       indicators: { revenue: '+', costs: '-', capital: '-', ghg: '+', pollutants: '+', resources: '+', employability: '-', quality: '+', fairness: '0' },
       antagonism: 'Fermentation plants need heavy capital and cut emissions, but they also threaten the income of the dairy farmers who supply us today.',
     },
     olympus: {
       god: 'hestia',
+      hypotheses: {
+        p: 'Food brands will pay 30% more per tonne for animal-free whey',
+        a: 'Fermentation yields can reach a cost per tonne within 30% of dairy whey',
+        c: 'Partner farms can earn as much growing sugar crops as supplying milk',
+      },
+      riskiest: 'p',
       answer: 'Dairy farmers lose a buyer. We would phase the shift over ten years, offer partner farms contracts to grow the sugar crops we ferment, and share part of the margin with them.',
       assumption: 'Food brands will pay 30% more per tonne for animal-free whey',
       mvp: 'Send 20 kg samples and a price sheet to 15 ice-cream brands, then offer a pilot contract',
@@ -173,8 +198,8 @@ function tyres(v: Voyage): Demo {
         idea: 'We fold fitting, checks, regrooving and retreading into one price, so fleets stop paying for downtime and early replacements; in exchange they give up choosing their own garage.',
       },
       2: { stage: 'Maintaining and fixing', idea: 'Instead of fleet managers organising tyre checks, our technicians inspect every truck at its depot each month; this costs us a national team of technicians and vans.' },
-      3: { barrier: 'They can’t afford it', idea: 'Small hauliers with ten trucks buy cheap imported tyres because premium tyres cost €400 upfront; spreading the cost per kilometre removes that upfront barrier.' },
-      4: { idea: 'Fleets buy tyres for pure function; for older trucks we strip it back further: certified retreaded tyres at half the price, sold on reliability rather than brand.', lower: 'Tyre lifespan' },
+      3: { barrier: 'They can’t access or use it (skills, place, time)', idea: 'Small hauliers with ten trucks have no tyre specialist, so they run cheap tyres until they fail; a ready tyre-care package sold with the truck by their dealer removes the barrier.' },
+      4: { idea: 'Fleets buy tyres for pure function; for older trucks we strip it back further: certified retreaded tyres at half the price, sold on reliability rather than brand.', lower: 'Fuel efficiency' },
       5: { job: 'Keeping trucks rolling safely at the lowest cost per kilometre', idea: 'Like aircraft engine makers, who sell engine hours with maintenance included, we would sell kilometres with tyre care included; and we would stop selling tyres one by one through distributors.' },
       6: { who: 'Telematics software providers', sides: ['Tyre alerts inside the fleet software they already use', 'Richer data and a new paid module for their clients', 'Fleets pay the provider; we pay it per truck connected'] },
       7: { model: 'Pay per use', idea: 'We charge transport companies a fee per kilometre driven, billed monthly; they prefer it because tyre costs become predictable and follow their revenue, while we carry the risk of early wear.' },
@@ -199,12 +224,20 @@ function tyres(v: Voyage): Demo {
       name: 'Kilometre Keeper',
       pitch: 'For European truck fleets, Kilometre Keeper sells kilometres instead of tyres: one predictable fee per kilometre, with sensors and our technicians doing the rest, unlike Troy, because we keep the tyres.',
       curve: [4, 5, 5, 5, 4],
+      chain: ['Research and design tyres with sensors', 'Manufacture tyres', 'Sign multi-year contracts directly with fleets', 'Fit tyres and sensors at partner garages', 'Monitor wear remotely and inspect at depots', 'Retread twice, then recycle'],
+      price: 'A fee per kilometre driven, billed monthly, with fitting, checks and retreading included',
       zone: 'game-changing',
       indicators: { revenue: '+', costs: '-', capital: '-', ghg: '+', pollutants: '0', resources: '+', employability: '+', quality: '+', fairness: '0' },
       antagonism: 'Owning the tyres ties up far more capital, while the environmental gains only come if fleets stay for years and we retread every casing.',
     },
     olympus: {
       god: 'hermes',
+      hypotheses: {
+        p: 'Fleet managers will trust a supplier to own and manage their tyres',
+        a: 'Sensors can measure kilometres and wear reliably enough to bill on them',
+        c: 'Retreading each casing twice cuts our tyre costs by at least a quarter',
+      },
+      riskiest: 'p',
       answer: 'Fleets give up control of tyre buying, but they already outsource maintenance and hate unpredictable costs; a fixed price per kilometre is easier to budget and to pass on to their own clients.',
       assumption: 'Fleet managers will trust a supplier to own and manage their tyres',
       mvp: 'A manual three-month pilot with three mid-size fleets in Lyon, billed per kilometre from odometer readings',

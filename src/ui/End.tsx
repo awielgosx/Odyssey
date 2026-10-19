@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { DIRECTIONS, directionById } from '../content/directions'
 import { flattenLanding } from '../content/landing'
 import { voyageById } from '../content/voyages'
-import { bestGrade, finalGrade, useGame } from '../store'
+import { bestGrade, finalGrade, pendingReviews, useGame } from '../store'
 import { ExportDialog } from './Export'
 import { GODS, INDICATORS, ZONES } from './Tasks'
+import { reviewPending } from './useTask'
 
 const fmt = (n: number) => `${Math.round(n * 100)}%`
 
@@ -33,6 +34,8 @@ export function buildLog(): string {
   L.push('## 2. The innovation')
   L.push(`- ${lem?.name ?? ''}: ${lem?.pitch ?? ''}`)
   if (s.aeolus) L.push(`- Combined plan (Aeolus): ${s.aeolus.answer.sentence}`)
+  if (lem?.price) L.push(`- Price and revenue model: ${lem.price}`)
+  if (lem?.chain?.length) L.push(`- New value chain: ${lem.chain.join(' > ')}`)
   L.push('')
   L.push('## 3. Value architecture today (the Narrows)')
   if (s.narrows) {
@@ -44,7 +47,8 @@ export function buildLog(): string {
   L.push('## 4. Value proposition: value curve')
   L.push('| Attribute | Troy | New |')
   L.push('|---|---|---|')
-  t?.attributes.forEach((a, i) => L.push(`| ${a.name} | ${a.level} | ${lem?.curve[i] ?? ''} |`))
+  t?.attributes.forEach((a, i) => L.push(`| ${a.name} | ${a.level} | ${lem?.curve[i] === 0 ? 'eliminated' : lem?.curve[i] ?? ''} |`))
+  lem?.added?.forEach((a) => L.push(`| ${a.name} (new) | - | ${a.level} |`))
   if (lem?.zone) L.push(`\nPosition: ${ZONES.find((z) => z.id === lem.zone)?.label}`)
   L.push('')
   L.push('## 5. The fourteen directions')
@@ -70,6 +74,7 @@ export function buildLog(): string {
     const god = GODS.find((x) => x.id === oly.god)
     L.push(`- ${god?.name} asked: ${god?.q}`)
     L.push(`- Answer: ${oly.answer}`)
+    if (oly.hypotheses) L.push(`- Hypotheses: proposition: ${oly.hypotheses.p} | architecture: ${oly.hypotheses.a} | contributions: ${oly.hypotheses.c}`)
     L.push(`- Riskiest assumption: ${oly.assumption}`)
     L.push(`- MVP: ${oly.mvp}`)
     L.push(`- What users put at stake: ${oly.stake}`)
@@ -80,6 +85,7 @@ export function buildLog(): string {
   L.push(`- Framing, 10% (Troy): ${fmt(g.framing)}`)
   L.push(`- Exploration, 20% (the fourteen islands, including reasoned 'does not fit' answers): ${fmt(g.application)}`)
   L.push(`- Focus, 60% (the two ideas chosen at Aeolus, Aeolus, Lemnos, Olympus): ${fmt(g.synthesis)}`)
+  if (g.pending) L.push(`- Provisional: ${g.pending} answers were scored by simple checks while Athena was unreachable (counted at most half marks).`)
   if (v.reveal) {
     L.push('')
     L.push(`## 9. Tiresias' reveal: ${v.reveal.company}`)
@@ -111,7 +117,14 @@ export function IthacaEnd() {
   const v = voyageById(s.voyageId)
   const g = finalGrade(s)
   const [exporting, setExporting] = useState(false)
+  const [reviewing, setReviewing] = useState<string>('')
   const complete = !!bestGrade(s.olympus)
+  const pending = pendingReviews(s)
+  const sendPending = async () => {
+    setReviewing('Athena is reading…')
+    const r = await reviewPending((done, total) => setReviewing(`Athena is reading ${done} of ${total}…`))
+    setReviewing(r.reviewed === r.total ? '' : r.reviewed ? `Athena reviewed ${r.reviewed} of ${r.total}, then went quiet again. Try the rest in a minute.` : 'Athena still cannot be reached. Try again in a minute.')
+  }
   const slug = (s.lemnos?.answer.name || 'voyage').replace(/[^\w]+/g, '-').toLowerCase()
   const minutes = s.startedAt ? Math.round(((s.finishedAt ?? Date.now()) - s.startedAt) / 60000) : 0
   return (
@@ -120,16 +133,32 @@ export function IthacaEnd() {
         <p className="kicker">
           <span className="badge ink">Home</span> Your reinvented business model
         </p>
-        <h2>Ithaca</h2>
+        <h2 tabIndex={-1}>Ithaca</h2>
         <p className="lede">You are home. Argos lifts his head. Penelope has woven your voyage into a Captain's Log.</p>
       </div>
       <div className="panel-body">
         {!complete && <div className="hint">Finish the council on Olympus first to see your final score.</div>}
+        {pending.length > 0 && (
+          <div className="estimate">
+            <p>
+              <b>
+                {pending.length} answer{pending.length > 1 ? 's' : ''} still wait{pending.length > 1 ? '' : 's'} for Athena’s review
+              </b>{' '}
+              ({pending.map((p) => p.label).join(', ')}). She was unreachable when you submitted, so simple checks gave a provisional score, counted at most half marks. Send them now to get her real review.
+            </p>
+            <div className="submit-row">
+              <button className="btn small primary" disabled={!!reviewing && reviewing.startsWith('Athena is')} onClick={sendPending}>
+                Send pending answers to Athena
+              </button>
+              {reviewing && <small className="count">{reviewing}</small>}
+            </div>
+          </div>
+        )}
         <div className="scorecard">
           <div className="big">{g.outOf20}/20</div>
           <div className="count">Voyage score</div>
           <div className="rank">
-            {g.polytropos ? 'Polytropos, the man of many turns' : g.rank} ({g.percent}%)
+            {g.polytropos ? 'Polytropos, the man of many turns' : g.rank} ({g.percent}%){g.pending ? ', provisional' : ''}
           </div>
         </div>
         {[
@@ -150,7 +179,7 @@ export function IthacaEnd() {
           {Object.values(s.checks).filter((c) => c.firstTry).length} of 14 quick checks right first time. Voyage time: {minutes} minutes.
           {Object.values(s.landings).filter((l) => (l.grades.at(-1)?.total ?? 0) >= 5).length >= 7 ? ' Badge: Explorer (seven islands scored 5 or 6).' : ''}
           {Object.values(s.checks).filter((c) => c.firstTry).length === 14 ? ' Badge: Cartographer.' : ''}
-          {minutes > 0 && minutes <= 20 ? ' Badge: Swift keel.' : ''}
+          {minutes > 0 && minutes <= 30 && g.percent >= 70 && !g.pending ? ' Badge: Swift keel (fast and well argued).' : ''}
         </p>
         {v.reveal && complete && (
           <div className="section">

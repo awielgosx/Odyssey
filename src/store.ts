@@ -10,6 +10,16 @@ export type { Landing, NarrowsAnswer, Sign }
 export type Quality = 'high' | 'low'
 export type Phase = 'title' | 'intro' | 'setup' | 'play'
 export type ShipStyle = 'black' | 'owl' | 'dolphin'
+// Reinventing an existing company, or a startup attacking the incumbents' model
+export type Framing = 'incumbent' | 'startup'
+
+// What was sent for review, kept with a provisional estimate so Athena can review it later
+export interface PendingReview {
+  kind: 'troy' | 'landing' | 'aeolus' | 'lemnos' | 'olympus'
+  directionId?: number
+  answer: string
+  extra?: object
+}
 
 export interface Grade {
   scores: { criterion: string; score: number; max: number; note: string }[]
@@ -17,7 +27,8 @@ export interface Grade {
   max: number
   feedback: string
   question: string
-  source: 'ai' | 'estimate'
+  source: 'ai' | 'estimate' | 'rules'
+  pending?: PendingReview
 }
 
 export interface TroyAnswer {
@@ -42,6 +53,9 @@ export interface LemnosAnswer {
   name: string
   pitch: string
   curve: number[]
+  added?: Attribute[] // attributes Troy never offered (created at the forge)
+  chain?: string[] // the new value chain
+  price?: string // the new price and revenue model
   zone: string
   indicators: Record<string, Sign | ''>
   antagonism: string
@@ -50,6 +64,8 @@ export interface LemnosAnswer {
 export interface OlympusAnswer {
   god: string
   answer: string
+  hypotheses?: { p: string; a: string; c: string } // one per pillar
+  riskiest?: 'p' | 'a' | 'c'
   assumption: string
   mvp: string
   stake: string
@@ -81,8 +97,10 @@ interface GameState {
   introStep: number
   voyageId: string
   captain: string
+  captainAuto: boolean // name drawn from Odysseus' crew because the field was left blank
   crew: string[]
   shipStyle: ShipStyle
+  framing: Framing
   startedAt: number | null
   finishedAt: number | null
   // position
@@ -107,7 +125,7 @@ interface GameState {
   toast: { text: string; id: number } | null
   // actions
   set: (p: Partial<GameState>) => void
-  startVoyage: (voyageId: string, captain: string, crew?: string[], shipStyle?: ShipStyle) => void
+  startVoyage: (voyageId: string, captain: string, crew?: string[], shipStyle?: ShipStyle, framing?: Framing) => void
   sailTo: (index: number) => void
   arrive: () => void
   answerCheck: (id: number, optionIndex: number, correct: boolean) => void
@@ -127,12 +145,44 @@ interface GameState {
 // Odysseus' crew, for captains who leave their name blank
 const CREW = ['Eurylochus', 'Polites', 'Elpenor', 'Perimedes', 'Antiphus', 'Eurybates', 'Halitherses']
 
+// Writes are debounced: every keystroke updates a draft, and serialising the whole voyage on each
+// one made typing sluggish on slower laptops. Pending writes are flushed when the tab is hidden.
+function debounced(store: Storage) {
+  const queue = new Map<string, string>()
+  let timer: number | undefined
+  const flush = () => {
+    window.clearTimeout(timer)
+    timer = undefined
+    queue.forEach((v, k) => {
+      try {
+        store.setItem(k, v)
+      } catch {
+        /* full or blocked: keep playing in memory */
+      }
+    })
+    queue.clear()
+  }
+  window.addEventListener('pagehide', flush)
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush())
+  return {
+    getItem: (k: string) => queue.get(k) ?? store.getItem(k),
+    setItem: (k: string, v: string) => {
+      queue.set(k, v)
+      if (timer === undefined) timer = window.setTimeout(flush, 400)
+    },
+    removeItem: (k: string) => {
+      queue.delete(k)
+      store.removeItem(k)
+    },
+  }
+}
+
 const safeStorage = createJSONStorage(() => {
   try {
     const k = '__o314_test'
     localStorage.setItem(k, '1')
     localStorage.removeItem(k)
-    return localStorage
+    return debounced(localStorage)
   } catch {
     const mem = new Map<string, string>()
     return { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) }
@@ -144,8 +194,10 @@ const fresh = {
   introStep: 0,
   voyageId: 'phone',
   captain: '',
+  captainAuto: false,
   crew: [] as string[],
   shipStyle: 'black' as ShipStyle,
+  framing: 'incumbent' as Framing,
   startedAt: null,
   finishedAt: null,
   stopIndex: 0,
@@ -183,15 +235,17 @@ export const useGame = create<GameState>()(
       wax: false,
       ...fresh,
       set: (p) => set(p),
-      startVoyage: (voyageId, captain, crew = [], shipStyle = 'black') => {
+      startVoyage: (voyageId, captain, crew = [], shipStyle = 'black', framing = 'incumbent') => {
         const v = voyageById(voyageId)
         set({
           ...fresh,
           phase: 'play',
           voyageId,
           captain: captain.trim() || CREW[Math.floor(Math.random() * CREW.length)],
+          captainAuto: !captain.trim(),
           crew: crew.map((c) => c.trim()).filter(Boolean),
           shipStyle,
+          framing: voyageId === 'own' ? framing : 'incumbent',
           startedAt: Date.now(),
           troy: {
             answer: {
@@ -265,6 +319,12 @@ export const useGame = create<GameState>()(
         }
         return s as GameState
       },
+      // a reload mid-sail: the ship is at its destination, so count it as reached
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<GameState>
+        const merged = { ...current, ...p }
+        return { ...merged, furthest: Math.max(merged.furthest ?? 0, merged.stopIndex ?? 0) }
+      },
       partialize: (s) => {
         // don't persist transient flags
         const { sailing, toast, chart, ...rest } = s
@@ -307,6 +367,23 @@ export function stopComplete(s: GameState, index: number): boolean {
   }
 }
 
+// The draft key of the task at a stop (matches useGradedTask keys)
+export function stopKey(index: number): string | null {
+  const stop = STOPS[index]
+  if (!stop) return null
+  if (stop.kind === 'island') return `land${stop.directionId}`
+  return stop.kind === 'ithaca' ? null : stop.kind
+}
+
+// A reviewed answer is open for revision here: sailing on would leave unsubmitted changes behind
+export function revisingHere(s: GameState): boolean {
+  const key = stopKey(s.stopIndex)
+  if (!key || s.drafts[`editing:${key}`] !== true) return false
+  if (key === 'narrows') return !!s.narrows
+  const rec = key === 'troy' ? s.troy : key === 'aeolus' ? s.aeolus : key === 'lemnos' ? s.lemnos : key === 'olympus' ? s.olympus : s.landings[Number(key.slice(4))]
+  return !!rec?.grades.length
+}
+
 export function landedIn(s: GameState, pillar: 'proposition' | 'architecture') {
   return Object.entries(s.landings)
     .filter(([id, l]) => (pillar === 'proposition' ? +id <= 7 : +id >= 8) && l.grades.length > 0)
@@ -331,6 +408,7 @@ export interface FinalGrade {
   outOf20: number
   rank: string
   polytropos: boolean
+  pending: number
 }
 
 // Quick checks: 1 point right first time, 0.4 on the second try, nothing after that
@@ -342,9 +420,29 @@ export const checkPoints = (s: Pick<GameState, 'checks'>) => Object.values(s.che
 // lightly weighted), Focus 60% (the two ideas chosen at Aeolus, Aeolus, Lemnos and Olympus).
 export const WEIGHTS = { knowledge: 0.1, framing: 0.1, application: 0.2, synthesis: 0.6 }
 
+// A provisional estimate (Athena unreachable) counts for at most half marks until she reviews it,
+// so simple checks can never stand in for a real review.
+export const ESTIMATE_CEILING = 0.5
 const ratio = (a: { grades: Grade[] } | null | undefined) => {
   const g = bestGrade(a)
-  return g ? g.total / g.max : 0
+  if (!g) return 0
+  const r = g.total / g.max
+  return g.source === 'estimate' ? Math.min(ESTIMATE_CEILING, r) : r
+}
+
+// Answers still waiting for Athena's real review
+export function pendingReviews(s: Pick<GameState, 'troy' | 'landings' | 'aeolus' | 'lemnos' | 'olympus'>) {
+  const out: { key: string; label: string }[] = []
+  const add = (key: string, label: string, a: { grades: Grade[] } | null | undefined) => bestGrade(a)?.source === 'estimate' && out.push({ key, label })
+  add('troy', 'Troy', s.troy)
+  Object.keys(s.landings)
+    .map(Number)
+    .sort((x, y) => x - y)
+    .forEach((id) => add(`land${id}`, `Island ${id}`, s.landings[id]))
+  add('aeolus', 'Aeolus', s.aeolus)
+  add('lemnos', 'Lemnos', s.lemnos)
+  add('olympus', 'Olympus', s.olympus)
+  return out
 }
 
 export function finalGrade(s: GameState): FinalGrade {
@@ -358,5 +456,6 @@ export function finalGrade(s: GameState): FinalGrade {
   const percent = Math.round((knowledge * WEIGHTS.knowledge + framing * WEIGHTS.framing + application * WEIGHTS.application + synthesis * WEIGHTS.synthesis) * 100)
   const rank = percent >= 85 ? 'Captain' : percent >= 70 ? 'Navigator' : percent >= 50 ? 'Helmsman' : 'Deckhand'
   const polytropos = percent >= 90 && firstTry >= 12
-  return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent * 2) / 10, rank, polytropos }
+  const pending = pendingReviews(s).length
+  return { knowledge, framing, application, synthesis, percent, outOf20: Math.round(percent * 2) / 10, rank, polytropos: polytropos && pending === 0, pending }
 }

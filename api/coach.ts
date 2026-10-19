@@ -193,7 +193,7 @@ const DATA: {
       "pillar": "architecture",
       "definition": "Find a resource or competence that is valuable, rare and hard to copy, and use it for a new offer or new customers.",
       "caseTitle": "Amazon Web Services",
-      "lens": "The VRIO test (valuable, rare, hard to imitate) and a named new customer for the resource.",
+      "lens": "The VRIO test (valuable, rare, hard to imitate, organised to exploit it) and a named new customer for the resource.",
       "questions": [
         "Which resources and competencies are rare and hard to copy?",
         "Which are under-used today?",
@@ -207,7 +207,7 @@ const DATA: {
         "key": "framing",
         "label": "Reference offer framed",
         "max": 2,
-        "anchors": "0: offer or customers missing or generic. 1: offer and customers named but user/decision-maker/payer not distinguished or price vague. 2: concrete offer, the three customer roles thought through, price stated.",
+        "anchors": "0: offer or customers missing or generic. 1: offer and customers named but user/decision-maker/payer not distinguished, price vague, or the value curve uses the company’s view (features, internal metrics) instead of the customer’s. 2: concrete offer, the three customer roles thought through, price stated, and value curve attributes that customers really compare offers on.",
         "question": "Who uses the offer, who decides to buy it, and who actually pays? Are they the same person?"
       },
       {
@@ -262,22 +262,22 @@ const DATA: {
         "key": "curve",
         "label": "Value curve trade-off",
         "max": 2,
-        "anchors": "0: everything raised or nothing changed. 1: some change but no attribute lowered. 2: at least one attribute raised AND one lowered or removed, consistent with the pitch.",
+        "anchors": "0: everything raised or nothing changed. 1: some change but no attribute lowered or eliminated. 2: at least one attribute raised or newly created AND one lowered or eliminated (level 0), consistent with the pitch.",
         "question": "Not everything can be better. Which attribute do you deliberately make worse to afford the new ones?"
       },
       {
         "key": "positioning",
         "label": "Pitch and positioning",
         "max": 2,
-        "anchors": "0: no clear pitch. 1: pitch but generic or inconsistent with the chosen zone. 2: crisp pitch naming customer and benefit, consistent with the price/perceived-value zone.",
+        "anchors": "0: no clear pitch or no revenue model. 1: pitch and price given, but generic, or inconsistent with the chosen zone (e.g. a higher price with less value). 2: crisp pitch naming customer and benefit, a concrete price and revenue model, consistent with the curve and the price/perceived-value zone.",
         "question": "In one sentence: for whom, what, and why is it worth the price?"
       },
       {
         "key": "coherence",
         "label": "Three pillars coherent",
         "max": 2,
-        "anchors": "0: proposition and architecture contradict. 1: plausible but loose. 2: the architecture clearly delivers the proposition and the financial logic follows.",
-        "question": "Does your value chain really deliver the curve you drew?"
+        "anchors": "0: proposition and architecture contradict, or the new value chain is Troy’s unchanged. 1: plausible but loose: the new chain changes steps unrelated to the promise. 2: the new value chain clearly delivers the curve and pitch (the steps added, changed or removed are exactly what the promise needs) and the revenue model follows.",
+        "question": "Which step of your new value chain makes your promise possible, and which one did you remove to afford it?"
       },
       {
         "key": "contributions",
@@ -296,10 +296,17 @@ const DATA: {
         "question": "Answer the god directly: what evidence do you have, or would you need?"
       },
       {
+        "key": "hypotheses",
+        "label": "Hypotheses and the riskiest one",
+        "max": 2,
+        "anchors": "0: hypotheses missing or not testable (opinions, goals). 1: one per pillar but vague, or the one marked riskiest is a safe, already-known fact. 2: three testable hypotheses, one per pillar, and the riskiest is the one the model depends on most and the team knows least about.",
+        "question": "If you could prove only one belief before investing, which one would you pick, and why that one?"
+      },
+      {
         "key": "test",
         "label": "Experiment design",
         "max": 2,
-        "anchors": "0: no testable assumption. 1: assumption and MVP but no measurable stake. 2: riskiest assumption, a low-tech low-scale MVP, and a metric where users put something at stake (money, time, reputation) with a threshold.",
+        "anchors": "0: no test of the riskiest hypothesis. 1: an MVP but not low-tech/low-scale, or no measurable stake. 2: a low-tech, low-scale MVP that tests exactly the riskiest hypothesis, and a metric where users put something at stake (money, time, reputation) with a threshold set in advance.",
         "question": "What would users have to put at stake to prove your assumption, and what number would convince you?"
       }
     ]
@@ -333,15 +340,18 @@ const KINDS: TaskKind[] = ['troy', 'landing', 'aeolus', 'lemnos', 'olympus']
 const MAX_CHARS = 4000
 const BUDGET_MS = 25000
 
-// Simple per-instance rate limit: 150 calls per IP per 10 minutes (a class on one campus network shares an IP).
+// Simple per-instance rate limits. A class on one campus network shares one IP, so the IP limit is
+// generous (a whole room) and each browser has its own, tighter limit (one voyage needs about 40 calls).
 const hits = new Map<string, number[]>()
-function limited(ip: string) {
+function over(key: string, max: number) {
   const now = Date.now()
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 10 * 60 * 1000)
+  const recent = (hits.get(key) ?? []).filter((t) => now - t < 10 * 60 * 1000)
   recent.push(now)
-  hits.set(ip, recent)
-  return recent.length > 150
+  hits.set(key, recent)
+  if (hits.size > 5000) hits.clear() // never let a long-lived instance grow without bound
+  return recent.length > max
 }
+const limited = (ip: string, sid: string) => (sid ? over(`s:${sid}`, 120) : false) || over(`ip:${ip}`, 800)
 
 const RULES = `You are Athena, the student's mentor, coaching a business-school student (HEC Paris, master level) through the Odyssey 3.14 method of business model innovation.
 Rules:
@@ -361,8 +371,8 @@ function taskText(kind: TaskKind, directionId: number | undefined) {
       ? `Island ${dir.id}: apply direction "${dir.name}" (${dir.pillar === 'proposition' ? 'value proposition' : 'value architecture'} pillar) to the reference business. Definition: ${dir.definition} The course case was ${dir.caseTitle}; the student must NOT copy the case but transpose its logic to their own business. The answer is short by design (one to three small questions, shown with the student's answers); judge depth, not length. Islands are for generating ideas quickly, so be encouraging but honest.\nIf the answer starts with "NO FIT", the student argues this direction does not fit their business. That is a legitimate outcome of the method (Odyssey 3.14 explores all fourteen directions but no business uses them all). Score it on the same criteria: grounded = uses specifics of their business; logic = shows they understand this direction's mechanism and why it fails here; consequence = says what would have to change for it to fit, or what they would risk. A lazy "not relevant" scores 0 or 1; a sharp, specific argument can score full marks.\nLENS (the follow-up this island trains, graded under "consequence"): ${dir.lens}`
       : 'Apply one direction.',
     aeolus: 'Aeolus: the student picks one value-proposition idea (the promise) and one value-architecture idea (what makes it possible) from their islands, may reword both, and explains the LINK: why the architecture change makes the promise possible. Judge above all whether the link is real (remove the architecture change: could the promise still be kept? If yes, the coherence is weak). They also name who gains most and the contribution that improves most.',
-    lemnos: "Lemnos, Hephaestus' forge: crystallise the new business model (name, pitch, new value curve versus the reference, price/perceived value zone, 9 contribution indicators, main antagonism).",
-    olympus: "Olympus: answer one stakeholder god's challenge, then design the cheapest experiment (riskiest assumption, a low-tech low-scale MVP, what users put at stake and the threshold that would convince).",
+    lemnos: "Lemnos, Hephaestus' forge: crystallise the new business model across the three pillars: name and pitch; the new value curve versus the reference (attributes raised, reduced, eliminated = level 0, or created = new, Troy 0); the new price and revenue model; the price/perceived-value zone; the NEW value chain versus Troy's (steps removed, changed, added); the 9 contribution indicators; the main antagonism. Check that the new value chain really delivers the curve and the pitch, and that price, curve and zone are consistent.",
+    olympus: "Olympus: answer one stakeholder god's challenge; write three hypotheses the model rests on, one per pillar (value proposition, value architecture, contributions), and mark the riskiest; then design the cheapest experiment for that riskiest one (a low-tech low-scale MVP, what users put at stake and the threshold set in advance). Ares asks about roll-out and cannibalisation inside the existing company.",
   }[kind]
 }
 
@@ -439,8 +449,10 @@ const HINT_SCHEMA = { type: 'OBJECT', properties: { question: { type: 'STRING' }
 
 const RETRYABLE = [404, 408, 429, 500, 502, 503, 504]
 
-// Same check as the browser's: placeholder or keyboard-mash text never reaches the model.
-const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'lorem', 'ipsum', 'dolor', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'idk', 'dunno', 'something', 'stuff', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'yes', 'no'])
+// Same check as the browser's (src/content/landing.ts): placeholder or keyboard-mash text never reaches the model.
+const FILLER = new Set(['test', 'testing', 'tests', 'asdf', 'qwerty', 'azerty', 'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit', 'sed', 'eiusmod', 'tempor', 'incididunt', 'labore', 'magna', 'aliqua', 'blah', 'bla', 'xxx', 'xx', 'x', 'aaa', 'abc', 'foo', 'bar', 'baz', 'idk', 'dunno', 'something', 'stuff', 'whatever', 'todo', 'tbd', 'na', 'n/a', 'none', 'nothing', 'hello', 'hi', 'ok', 'okay', 'yes', 'no', 'answer', 'here', 'random', 'text', 'word', 'words'])
+const KEYS = ['qwer', 'wert', 'erty', 'asdf', 'sdfg', 'dfgh', 'fghj', 'ghjk', 'hjkl', 'zxcv', 'xcvb', 'cvbn', 'vbnm', 'azer', 'qsdf', 'uiop', 'yuio', 'jkl;']
+const gibberish = (w: string) => w.length >= 4 && (/[bcdfghjklmnpqrstvwxz]{5,}/.test(w) || KEYS.some((k) => w.includes(k)) || /^(.{2,4})\1+.?$/.test(w))
 function isJunk(text: string) {
   const ws = (text.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).filter(Boolean)
   if (!ws.length) return false
@@ -448,7 +460,9 @@ function isJunk(text: string) {
   if (ws.length >= 4 && new Set(ws).size / ws.length < 0.35) return true
   const letters = ws.join('')
   if (letters.length >= 8 && !/[aeiouy]/.test(letters)) return true
-  return ws.some((w) => w.length > 25)
+  if (ws.some((w) => w.length > 25)) return true
+  const long = ws.filter((w) => w.length >= 4)
+  return long.length > 0 && long.filter(gibberish).length / long.length >= 0.4
 }
 // answers arrive as "question\n- answer" lines; check every written answer of three words or more
 const hasJunk = (answer: string) =>
@@ -524,7 +538,8 @@ export default async function handler(req: Req, res: Res) {
   res.setHeader('cache-control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const ip = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? 'anon').split(',')[0].trim()
-  if (limited(ip)) return res.status(429).json({ error: 'Too many requests from this network. Athena needs a breather.' })
+  const sid = String(req.headers['x-voyage'] ?? '').slice(0, 64)
+  if (limited(ip, sid)) return res.status(429).json({ error: 'Too many requests from this network. Athena needs a breather.' })
 
   const b = (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {}) as Record<string, unknown>
   const kind = b.kind as TaskKind

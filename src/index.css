@@ -109,9 +109,18 @@ button {
 .chip:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
+select:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible,
+[contenteditable]:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 2px;
+}
+/* headings that only receive focus programmatically (on arrival) need no ring */
+h2[tabindex='-1']:focus,
+.grade[tabindex='-1']:focus,
+.why[tabindex='-1']:focus {
+  outline: none;
 }
 .btn.primary {
   background: var(--glaze);
@@ -364,11 +373,16 @@ select:focus-visible {
 }
 .rb.next {
   border-style: dashed;
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: pulse 1.6s ease-in-out 4;
 }
 .rb.locked {
-  opacity: 0.45;
+  border-style: dotted;
+  border-color: var(--ink-soft);
+  color: var(--ink-soft);
   cursor: default;
+}
+.rb.named {
+  white-space: nowrap;
 }
 .rb .laurel {
   position: absolute;
@@ -406,8 +420,8 @@ select:focus-visible {
   cursor: default;
 }
 .wax {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: none;
   background: radial-gradient(circle at 35% 35%, #fbe7a1, #d9a83c 70%);
@@ -462,10 +476,10 @@ select:focus-visible {
 }
 .coach-hide {
   position: absolute;
-  top: 6px;
-  right: 8px;
-  width: 20px;
-  height: 20px;
+  top: 4px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
   border: 0;
   background: none;
   font: 700 16px var(--body);
@@ -542,6 +556,8 @@ select:focus-visible {
 }
 
 /* ---------- task panel ---------- */
+/* Title and task scroll together inside the panel (so the task gets the height on small
+   laptops); the "Sail on" footer stays below the scroller. */
 .panel {
   position: absolute;
   z-index: 30;
@@ -553,15 +569,19 @@ select:focus-visible {
   flex-direction: column;
   animation: slide 0.4s ease-out;
 }
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-soft) transparent;
+}
 .panel-head {
   padding: 18px 24px 10px;
 }
 .panel-body {
-  flex: 1;
-  overflow: auto;
   padding: 4px 24px 24px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-soft) transparent;
 }
 .kicker {
   display: flex;
@@ -700,7 +720,7 @@ textarea {
   min-height: 64px;
 }
 ::placeholder {
-  color: #8a7558;
+  color: #6f5b40;
 }
 .count {
   font-size: 13px;
@@ -1092,7 +1112,33 @@ textarea {
     right: 0;
     bottom: 0;
     width: auto;
-    height: 52vh;
+    height: 62vh;
+  }
+  .panel-head {
+    padding: 10px 16px 4px;
+  }
+  .panel h2 {
+    font-size: 22px;
+  }
+  .panel-body {
+    padding: 4px 16px 18px;
+  }
+  .panel-foot {
+    padding: 8px 16px 10px;
+  }
+  .hud-right .chip {
+    height: 32px;
+    padding: 0 9px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .laurel-mini {
+    display: none;
+  }
+  .hud-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
   }
   .topbar {
     flex-wrap: wrap;
@@ -1102,12 +1148,30 @@ textarea {
     flex-wrap: nowrap;
     max-width: 100%;
   }
+  /* Athena becomes a one-line strip above the panel */
   .coach {
+    left: 8px;
+    right: 8px;
+    bottom: calc(62vh + 56px);
+    max-width: none;
+  }
+  .coach > span[aria-hidden],
+  .coach .coach-tip {
     display: none;
+  }
+  .coach .bubble {
+    max-height: 64px;
+    overflow: auto;
+    padding: 6px 34px 6px 10px;
+    font-size: 13.5px;
   }
   .nav {
     right: 12px;
-    bottom: calc(52vh + 10px);
+    bottom: calc(62vh + 8px);
+  }
+  .nav .btn.primary {
+    font-size: 14px;
+    padding: 8px 12px;
   }
   .toast {
     left: 50%;
@@ -1268,10 +1332,14 @@ label.field > span .count {
   font-weight: 700;
 }
 .score-mini {
-  margin-left: 6px;
-  padding-left: 8px;
-  border-left: 1px solid currentColor;
   font-variant-numeric: tabular-nums;
+}
+.hud-right .chip {
+  white-space: nowrap;
+}
+.laurel-mini {
+  padding-left: 8px;
+  border-left: 1px solid rgba(43, 29, 14, 0.4);
 }
 .section h3 small.count {
   font-family: var(--body);
@@ -1309,9 +1377,19 @@ label.field > span .count {
 }
 .crew-row {
   display: flex;
+  align-items: center;
   gap: 8px;
-  max-width: 360px;
+  max-width: 420px;
   margin-top: 8px;
+}
+.crew-row small {
+  flex: none;
+  width: 86px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.crew-row input {
+  flex: 1;
 }
 .link-btn {
   display: inline-block;
@@ -1674,12 +1752,6 @@ label.field > span .count {
 .doc-greek .doc-title h1 {
   font-size: 32pt;
 }
-.doc-greek .doc-title h1::before {
-  content: 'Captain’s Log · ';
-  font-size: 13pt;
-  color: var(--doc-accent);
-  vertical-align: middle;
-}
 .doc-greek .doc-panel {
   border: 1.5px solid #2b1d0e;
   box-shadow: none;
@@ -1743,19 +1815,28 @@ label.field > span .count {
     outline: none;
   }
 }
-.doc-page:not(.doc-appendix) {
+
+.doc-page {
   height: 210mm;
 }
-@media print {
-  .doc-page.doc-appendix {
-    height: auto;
-    overflow: visible;
-  }
+.doc-appendix .doc-appx-item p {
+  font-size: 8.6pt;
+  line-height: 1.32;
 }
-
-.doc-appendix {
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
+.doc-results {
+  margin-top: 4mm;
+}
+.doc-small {
+  margin: 3px 0 0 !important;
+  font-size: 8.5pt;
+  color: var(--doc-ink-soft);
+}
+.doc-moves {
+  margin-top: 2px !important;
+  font-size: 9.5pt;
+}
+.export-bar .chars {
+  font-variant-numeric: tabular-nums;
 }
 .doc-moves {
   margin: 3mm 0 0;
@@ -1865,6 +1946,7 @@ label.field > span .count {
   cursor: default;
 }
 .panel-foot {
+  flex: none;
   padding: 10px 24px 16px;
   border-top: 1px solid rgba(43, 29, 14, 0.25);
 }
@@ -1936,8 +2018,8 @@ label.field > span .count {
 }
 .vc-dot:focus-visible {
   outline: none;
-  stroke: #2b1d0e;
-  stroke-width: 3;
+  stroke: var(--gold);
+  stroke-width: 6;
 }
 .vc-dot-label {
   font: 700 11px var(--body);
@@ -1947,11 +2029,20 @@ label.field > span .count {
 }
 .vc-names {
   position: relative;
-  height: 46px;
+  height: 52px;
   margin-top: 2px;
 }
 .vc-names.edit {
-  height: 62px;
+  height: 70px;
+}
+.vc-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px !important;
+  hyphens: auto;
+  overflow-wrap: break-word;
 }
 .vc-name,
 .vc-name-edit {
@@ -1968,9 +2059,12 @@ label.field > span .count {
 }
 .vc-name-edit textarea {
   min-height: 0;
-  height: 48px;
-  padding: 4px 5px;
-  font-size: 13px;
+  height: 58px;
+  padding: 3px 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  hyphens: auto;
+  overflow-wrap: break-word;
   text-align: center;
   resize: none;
 }
@@ -2027,13 +2121,13 @@ label.field > span .count {
   z-index: 3;
 }
 .celebrate {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 80;
   display: flex;
   overflow: auto;
   padding: 24px;
-  background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.2), rgba(20, 12, 6, 0.6));
+  background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.45), rgba(20, 12, 6, 0.82));
   animation: fade 0.6s ease-out;
 }
 .celebrate-card {
@@ -2149,4 +2243,77 @@ label.field > span .count {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, #efc29a 0%, #2f6f86 45%, #0b3f5c 100%);
+}
+
+/* ---------- playtest round: new bits ---------- */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.toast-x {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: -2px -6px 0 0;
+  border: 0;
+  background: none;
+  font: 700 18px var(--body);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pending-dot {
+  font-size: 12px;
+  color: var(--clay-text);
+}
+.laurel-mini {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.nofit-note {
+  margin: 6px 0 0;
+}
+.nofit-note.warn {
+  color: var(--clay-text);
+  font-weight: 600;
+}
+.hyp-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+.hyp-row .pick {
+  margin-bottom: 12px;
+}
+.back-links {
+  margin-top: 10px;
+}
+.hint.revising {
+  border-style: dashed;
+}
+.god[aria-pressed='true'] .count {
+  color: #f3d9b0;
+}
+.vc-name-edit button {
+  width: 24px !important;
+  height: 24px !important;
+  top: -10px !important;
+}
+.export-root:focus {
+  outline: none;
+}
+.skip-link {
+  position: absolute;
+  z-index: 100;
+  left: 12px;
+  top: -60px;
+  padding: 8px 14px;
+  background: var(--parch-hi, #f6ecd2);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  font-weight: 700;
+}
+.skip-link:focus {
+  top: 12px;
 }

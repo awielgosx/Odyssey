@@ -1,27 +1,27 @@
 // The submittable assignment: the voyage's answers laid out like the course's business model
 // description (title and tagline; context, business model innovation, results; value proposition
-// with a value curve; value architecture; contributions), in a clean professional style or in the
-// game's Greek style. Rendered outside the app root so the browser's "Save as PDF" prints only it.
-import { memo, useEffect, useRef, useState } from 'react'
+// with a value curve; value architecture; contributions), in the game's Greek style ("Contemporary")
+// or a clean professional style ("Scholar"). Rendered outside the app root so the browser's
+// "Save as PDF" prints only it. Every text block can be edited, and edits are kept in the voyage.
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { DIRECTIONS, directionById } from '../content/directions'
-import { flattenLanding, summaryOf } from '../content/landing'
+import { flattenLanding, ideaOf, isNoFit, midSentence } from '../content/landing'
 import { voyageById } from '../content/voyages'
 import { bestGrade, finalGrade, useGame } from '../store'
 import { GODS, INDICATORS, ZONES } from './Tasks'
+import { useDraft } from './useTask'
 
 export type DocStyle = 'pro' | 'greek'
 
+const LIMIT = 1500
 const strip = (s?: string) => (s ?? '').trim().replace(/\s+/g, ' ')
-// lower-case a leading capital mid-sentence ("Truck drivers" -> "truck drivers"), but keep acronyms and names like "BMW"
-const lower = (s?: string) => {
-  const t = strip(s)
-  return /^[A-Z][a-z]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t
-}
 const sentence = (s?: string) => {
   const t = strip(s)
-  return t && !/[.!?]$/.test(t) ? `${t}.` : t
+  return t && !/[.!?…]$/.test(t) ? `${t}.` : t
 }
+// "Label: text." with a capital after the label and a full stop at the end; empty when there is no text
+const labelled = (label: string, s?: string) => (strip(s) ? `${label}: ${sentence(strip(s).replace(/^./, (c) => c.toUpperCase()))}` : '')
 
 function gather() {
   const s = useGame.getState()
@@ -31,54 +31,63 @@ function gather() {
   const oly = s.olympus?.answer
   const aeo = s.aeolus?.answer
   const g = finalGrade(s)
-  const idea = (id: number | null | undefined) => (id && s.landings[id] ? summaryOf(directionById(id), s.landings[id].answer) : '')
-  const archIdeas = DIRECTIONS.filter((d) => d.pillar === 'architecture' && s.landings[d.id])
-    .map((d) => ({ d, score: bestGrade(s.landings[d.id])?.total ?? 0, text: idea(d.id) }))
-    .sort((a, b) => (a.d.id === aeo?.a ? -1 : b.d.id === aeo?.a ? 1 : b.score - a.score))
-    .slice(0, 3)
-  const deal = s.landings[12]?.answer.deal as string[] | undefined
+  const startup = s.framing === 'startup'
+  const chosen = [aeo?.p, aeo?.a]
+    .filter((id): id is number => !!id && !!s.landings[id] && !isNoFit(s.landings[id].answer))
+    .map((id) => ({ d: directionById(id), text: ideaOf(directionById(id), s.landings[id].answer) }))
+  const deal = s.landings[12] && !isNoFit(s.landings[12].answer) ? (s.landings[12].answer.deal as string[] | undefined) : undefined
   const zone = ZONES.find((z) => z.id === lem?.zone)
   const god = GODS.find((x) => x.id === oly?.god)
+  const pillarName = { p: 'value proposition', a: 'value architecture', c: 'contributions' } as const
+  const added = lem?.added ?? []
+  const names = [...(t?.attributes.map((a) => a.name) ?? []), ...added.map((a) => a.name)]
+  const before = [...(t?.attributes.map((a) => a.level) ?? []), ...added.map(() => 0)]
+  const after = [...(lem?.curve ?? t?.attributes.map((a) => a.level) ?? []), ...added.map((a) => a.level)]
+  // printed authors: never the crew name invented for a blank captain
+  const people = [s.captainAuto ? '' : s.captain, ...(s.crew ?? [])].map(strip).filter(Boolean)
   return {
     s,
     v,
     g,
+    startup,
     name: strip(lem?.name) || 'Untitled business model',
     tagline: strip(lem?.pitch),
-    authors: [s.captain, ...(s.crew ?? [])].filter(Boolean).join(', '),
+    authors: people.join(', '),
     business: v.id === 'own' ? '' : v.title,
     context: [
-      t && sentence(`Today the industry offers ${strip(t.offer).replace(/^./, (c) => c.toLowerCase())}, used by ${lower(t.user)}, chosen by ${lower(t.decider)} and paid for by ${lower(t.payer)} (${lower(t.price)})`),
-      t?.frustration && sentence(`Customers live with a frustration: ${strip(t.frustration).replace(/^./, (c) => c.toLowerCase())}`),
-      t?.orthodoxy && sentence(`Every incumbent assumes that ${strip(t.orthodoxy).replace(/^./, (c) => c.toLowerCase())}`),
-      t?.trend && sentence(`Meanwhile, ${strip(t.trend).replace(/^./, (c) => c.toLowerCase())} threatens this model`),
+      startup ? 'We are a startup entering this industry. The incumbents’ model works as follows.' : '',
+      labelled('Offer today', t?.offer),
+      t && `Users: ${midSentence(t.user)}; decision-makers: ${midSentence(t.decider)}; payers: ${midSentence(t.payer)}.`,
+      labelled('Price', t?.price),
+      labelled('Customer frustration', t?.frustration),
+      labelled('Industry orthodoxy', t?.orthodoxy),
+      labelled('Threat', t?.trend),
     ]
       .filter(Boolean)
       .join(' '),
     innovation: [
-      sentence(lem?.pitch),
       sentence(aeo?.sentence),
       aeo?.p && aeo?.a ? `It combines direction ${aeo.p} (${directionById(aeo.p).name.toLowerCase()}) with direction ${aeo.a} (${directionById(aeo.a).name.toLowerCase()}).` : '',
+      labelled('Revenue model', lem?.price),
     ]
       .filter(Boolean)
       .join(' '),
     results: [
       zone && `Expected positioning: ${zone.label.toLowerCase()} (${zone.text.toLowerCase()}).`,
-      oly?.assumption && sentence(`Riskiest assumption: ${strip(oly.assumption)}`),
-      oly?.mvp && sentence(`First test: ${strip(oly.mvp)}`),
-      oly?.stake && sentence(`Success threshold: ${strip(oly.stake)}`),
+      oly?.assumption && `Riskiest hypothesis${oly.riskiest ? ` (${pillarName[oly.riskiest]})` : ''}: ${sentence(midSentence(oly.assumption))}`,
+      labelled('First test', oly?.mvp),
+      labelled('Success threshold, set in advance', oly?.stake),
     ]
       .filter(Boolean)
       .join(' '),
-    curve: {
-      names: t?.attributes.map((a) => a.name) ?? [],
-      before: t?.attributes.map((a) => a.level) ?? [],
-      after: lem?.curve ?? t?.attributes.map((a) => a.level) ?? [],
-    },
-    chain: s.narrows?.chain ?? [],
-    changes: archIdeas,
-    partners: [strip(s.narrows?.partners), deal?.[0] && `${strip(deal[0])}${deal[1] ? ` (brings ${strip(deal[1]).replace(/^./, (c) => c.toLowerCase())})` : ''}`].filter(Boolean) as string[],
-    resources: [...(s.narrows?.resources ?? []), ...(s.landings[14]?.answer.resource ? [String(s.landings[14].answer.resource)] : [])].filter((x, i, a) => x && a.indexOf(x) === i),
+    curve: { names, before, after },
+    chain: lem?.chain?.length ? lem.chain : s.narrows?.chain ?? [],
+    troyChain: s.narrows?.chain ?? [],
+    newChain: !!lem?.chain?.length,
+    changes: chosen,
+    price: strip(lem?.price),
+    partners: [strip(s.narrows?.partners), deal?.[0] && `${strip(deal[0])}${deal[1] ? ` (brings ${midSentence(deal[1])})` : ''}`].filter(Boolean) as string[],
+    resources: [...(s.narrows?.resources ?? []), ...(s.landings[14] && !isNoFit(s.landings[14].answer) && s.landings[14].answer.resource ? [String(s.landings[14].answer.resource)] : [])].filter((x, i, a) => x && a.indexOf(x) === i),
     indicators: lem?.indicators ?? {},
     antagonism: strip(lem?.antagonism),
     god: god && oly ? { name: god.name, q: god.q, a: strip(oly.answer) } : null,
@@ -87,8 +96,24 @@ function gather() {
 
 type Doc = ReturnType<typeof gather>
 
+// An editable block. Its text is kept in the voyage, so closing and reopening the export (or a
+// reload) never loses an edit. Rendered once: the browser owns the text after that.
+const Ed = memo(
+  function Ed({ k, as = 'p', className, count, children }: { k: string; as?: 'p' | 'h1' | 'li' | 'span'; className?: string; count?: boolean; children: ReactNode }) {
+    const saved = useGame.getState().drafts[`export:${k}`] as string | undefined
+    const Tag = as
+    return (
+      <Tag className={className} data-k={k} data-count={count ? '' : undefined} contentEditable suppressContentEditableWarning spellCheck>
+        {saved ?? children}
+      </Tag>
+    )
+  },
+  () => true,
+)
+
 function Curve({ doc }: { doc: Doc }) {
   const { names, before, after } = doc.curve
+  const lo = Math.min(1, ...before, ...after) // 0 when an attribute was eliminated or created
   const W = 520
   const H = 300
   const padL = 76
@@ -96,7 +121,7 @@ function Curve({ doc }: { doc: Doc }) {
   const padT = 20
   const padB = 92
   const step = (W - padL - padR) / Math.max(1, names.length - 1)
-  const y = (v: number) => padT + (5 - v) * ((H - padT - padB) / 4)
+  const y = (v: number) => padT + (5 - v) * ((H - padT - padB) / (5 - lo))
   const path = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${padL + i * step},${y(v)}`).join(' ')
   // colours come from the document style (CSS variables), so switching style needs no re-render
   const c1 = 'var(--doc-c1)'
@@ -132,7 +157,7 @@ function Curve({ doc }: { doc: Doc }) {
       <g transform={`translate(${padL} ${H + 6})`} fontSize="12" style={{ fill: ink }}>
         <circle cx="6" cy="0" r="5" style={{ fill: c1 }} />
         <text x="16" y="4">
-          Troy: the traditional model
+          {doc.startup ? 'Troy: the incumbents’ model' : 'Troy: the traditional model'}
         </text>
         <circle cx="216" cy="0" r="5" style={{ fill: c2 }} />
         <text x="226" y="4">
@@ -155,57 +180,118 @@ function SignBoxes({ v }: { v: string }) {
   )
 }
 
-const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, group }: { doc: Doc; appendix: boolean; authors: string; group: string }) {
-  const { s, v, g } = doc
+function moves(doc: Doc) {
+  const { names, before, after } = doc.curve
+  const pick = (f: (b: number, a: number) => boolean) => names.filter((_, i) => f(before[i], after[i]))
+  return [
+    ['Created', pick((b, a) => b === 0 && a > 0)],
+    ['Raised', pick((b, a) => b > 0 && a > b)],
+    ['Reduced', pick((b, a) => a > 0 && a < b)],
+    ['Eliminated', pick((b, a) => b > 0 && a === 0)],
+  ].filter(([, xs]) => xs.length) as [string, string[]][]
+}
+
+function AppendixPage({ doc, sea, scores, foot }: { doc: Doc; sea: 'proposition' | 'architecture'; scores: boolean; foot: boolean }) {
+  const { s, g, v } = doc
+  return (
+    <section className="doc-page doc-appendix">
+      <h2 className="doc-tag">
+        Appendix: {sea === 'proposition' ? 'the Sea of the Value Proposition (directions 1 to 7)' : 'the Sea of the Value Architecture (directions 8 to 14)'}
+      </h2>
+      <div className="doc-appx">
+        {DIRECTIONS.filter((d) => d.pillar === sea).map((d) => {
+          const l = s.landings[d.id]
+          const gr = bestGrade(l)
+          return (
+            <div key={d.id} className="doc-appx-item">
+              <h3>
+                {d.id}. {d.name}
+                {scores && gr ? (
+                  <small>
+                    {' '}
+                    · Athena {gr.total}/{gr.max}
+                    {gr.source === 'estimate' ? ' (provisional)' : ''}
+                  </small>
+                ) : null}
+              </h3>
+              {!l ? (
+                <p className="q">Not explored.</p>
+              ) : isNoFit(l.answer) ? (
+                <>
+                  <p className="q">Does not fit our business. Why, and what would have to change for it to fit:</p>
+                  <p>{strip(String(l.answer.nofit ?? ''))}</p>
+                </>
+              ) : (
+                flattenLanding(d, l.answer)
+                  .split('\n')
+                  .map((line, i) => (line.startsWith('-') ? <p key={i}>{line.slice(2)}</p> : <p key={i} className="q">{line}</p>))
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {foot && (
+        <p className="doc-foot">
+          {scores
+            ? `Voyage score ${g.outOf20}/20 (${g.percent}%): knowledge ${Math.round(g.knowledge * 100)}%, framing ${Math.round(g.framing * 100)}%, exploration ${Math.round(g.application * 100)}%, focus ${Math.round(g.synthesis * 100)}%${g.pending ? `, with ${g.pending} provisional reviews` : ''}. `
+            : ''}
+          {v.id === 'own' ? '' : `Demo voyage based on ${v.title.toLowerCase()}. `}Every idea was written by the authors; the coach only asked questions.
+        </p>
+      )}
+    </section>
+  )
+}
+
+const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, scores, authors, group }: { doc: Doc; appendix: boolean; scores: boolean; authors: string; group: string }) {
+  const meta = [authors.trim(), group.trim() && `Group ${group.trim()}`, doc.business && `Demo case: ${doc.business}`, 'Odyssey 3.14 business model description', new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })].filter(Boolean)
+  const mv = moves(doc)
   return (
     <>
       <section className="doc-page">
         <header className="doc-title">
-          <h1 contentEditable suppressContentEditableWarning>
+          <Ed k="name" as="h1">
             {doc.name}
-          </h1>
+          </Ed>
           {doc.tagline && (
-            <p className="doc-tagline" contentEditable suppressContentEditableWarning>
+            <Ed k="tagline" className="doc-tagline">
               {doc.tagline}
-            </p>
+            </Ed>
           )}
-          <p className="doc-meta">
-            {authors || doc.authors}
-            {group ? ` · Group ${group}` : ''}
-            {doc.business ? ` · Demo case: ${doc.business}` : ''} · Odyssey 3.14 business model description · {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
+          <p className="doc-meta">{meta.join(' · ')}</p>
         </header>
         <div className="doc-cols">
           <div className="doc-panel">
             <h2>Context</h2>
-            <p data-count contentEditable suppressContentEditableWarning>
+            <Ed k="context" count>
               {doc.context || 'Describe the context.'}
-            </p>
+            </Ed>
             <h2>Business Model Innovation</h2>
-            <p data-count contentEditable suppressContentEditableWarning>
+            <Ed k="innovation" count>
               {doc.innovation || 'Describe the innovation.'}
-            </p>
-            <h2>Expected results</h2>
-            <p data-count contentEditable suppressContentEditableWarning>
-              {doc.results || 'Describe the expected results and how you will test them.'}
-            </p>
+            </Ed>
           </div>
           <div>
             <h2 className="doc-tag">Value proposition</h2>
             <div className="doc-box">
               <Curve doc={doc} />
-              <p className="doc-moves" contentEditable suppressContentEditableWarning>
-                {(() => {
-                  const { names, before, after } = doc.curve
-                  const up = names.filter((_, i) => after[i] > before[i])
-                  const down = names.filter((_, i) => after[i] < before[i])
-                  return (
-                    <>
-                      <b>Raised:</b> {up.join(', ') || 'nothing'}. <b>Lowered:</b> {down.join(', ') || 'nothing'}.
-                    </>
-                  )
-                })()}
-              </p>
+              <Ed k="moves" className="doc-moves">
+                {mv.length ? (
+                  mv.map(([label, xs], i) => (
+                    <span key={label}>
+                      {i ? ' ' : ''}
+                      <b>{label}:</b> {xs.join(', ')}.
+                    </span>
+                  ))
+                ) : (
+                  <>The curve is unchanged.</>
+                )}
+              </Ed>
+            </div>
+            <div className="doc-panel doc-results">
+              <h2>Expected results</h2>
+              <Ed k="results" count>
+                {doc.results || 'Describe the expected results and how you will test them.'}
+              </Ed>
             </div>
           </div>
         </div>
@@ -216,22 +302,27 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, grou
           <div>
             <h2 className="doc-tag">Value architecture</h2>
             <div className="doc-box">
-              <h3>Value chain</h3>
+              <h3>{doc.newChain ? 'New value chain' : 'Value chain'}</h3>
               <ol className="doc-chain">
                 {doc.chain.map((c, i) => (
-                  <li key={i} contentEditable suppressContentEditableWarning>
+                  <Ed key={i} k={`chain${i}`} as="li">
                     {c}
-                  </li>
+                  </Ed>
                 ))}
               </ol>
+              {doc.newChain && doc.troyChain.length > 0 && (
+                <p className="doc-small">
+                  <b>Troy’s chain:</b> {doc.troyChain.join(' → ')}
+                </p>
+              )}
               {doc.changes.length > 0 && (
                 <>
-                  <h3>What changes</h3>
+                  <h3>The two ideas behind it</h3>
                   <ul className="doc-list">
                     {doc.changes.map((c) => (
-                      <li key={c.d.id} contentEditable suppressContentEditableWarning>
-                        <b>{c.d.name}.</b> {c.text}
-                      </li>
+                      <Ed key={c.d.id} k={`change${c.d.id}`} as="li">
+                        <b>{c.d.name}.</b> {sentence(c.text)}
+                      </Ed>
                     ))}
                   </ul>
                 </>
@@ -239,15 +330,11 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, grou
               <div className="doc-two">
                 <div>
                   <h3>Partners</h3>
-                  <p contentEditable suppressContentEditableWarning>
-                    {doc.partners.join('; ') || '—'}
-                  </p>
+                  <Ed k="partners">{doc.partners.join('; ') || '—'}</Ed>
                 </div>
                 <div>
                   <h3>Resources and competencies</h3>
-                  <p contentEditable suppressContentEditableWarning>
-                    {doc.resources.join('; ') || '—'}
-                  </p>
+                  <Ed k="resources">{doc.resources.join('; ') || '—'}</Ed>
                 </div>
               </div>
             </div>
@@ -270,16 +357,15 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, grou
                   ))}
                 </tbody>
               </table>
+              <p className="doc-small">+ improves, 0 no change, − worsens, compared with Troy.</p>
               <h3>Main antagonism</h3>
-              <p contentEditable suppressContentEditableWarning>
-                {doc.antagonism || '—'}
-              </p>
+              <Ed k="antagonism">{doc.antagonism || '—'}</Ed>
               {doc.god && (
                 <>
                   <h3>Stakeholder challenge: {doc.god.name}</h3>
-                  <p contentEditable suppressContentEditableWarning>
+                  <Ed k="god">
                     <i>{doc.god.q}</i> {doc.god.a}
-                  </p>
+                  </Ed>
                 </>
               )}
             </div>
@@ -288,71 +374,79 @@ const AssignmentDoc = memo(function AssignmentDoc({ doc, appendix, authors, grou
       </section>
 
       {appendix && (
-        <section className="doc-page doc-appendix">
-          <h2 className="doc-tag">Appendix: the fourteen directions explored</h2>
-          <div className="doc-appx">
-            {DIRECTIONS.map((d) => {
-              const l = s.landings[d.id]
-              const gr = bestGrade(l)
-              return (
-                <div key={d.id} className="doc-appx-item">
-                  <h3>
-                    {d.id}. {d.name}
-                    {gr ? <small> · Athena {gr.total}/{gr.max}</small> : null}
-                  </h3>
-                  {l ? (
-                    flattenLanding(d, l.answer)
-                      .split('\n')
-                      .map((line, i) => (line.startsWith('-') ? <p key={i}>{line.slice(2)}</p> : <p key={i} className="q">{line}</p>))
-                  ) : (
-                    <p className="q">Not explored.</p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <p className="doc-foot">
-            Voyage score {g.outOf20}/20 ({g.percent}%): knowledge {Math.round(g.knowledge * 100)}%, framing {Math.round(g.framing * 100)}%, exploration {Math.round(g.application * 100)}%, focus {Math.round(g.synthesis * 100)}%. {v.id === 'own' ? '' : `Demo voyage based on ${v.title.toLowerCase()}.`} Every idea was written by the authors; the coach only asked questions.
-          </p>
-        </section>
+        <>
+          <AppendixPage doc={doc} sea="proposition" scores={scores} foot={false} />
+          <AppendixPage doc={doc} sea="architecture" scores={scores} foot />
+        </>
       )}
     </>
   )
 })
 
+const SECTIONS = [
+  ['context', 'Context'],
+  ['innovation', 'Innovation'],
+  ['results', 'Results'],
+] as const
+
 export function ExportDialog({ onClose }: { onClose: () => void }) {
-  const [style, setStyle] = useState<DocStyle>('greek')
-  const [authors, setAuthors] = useState(() => {
-    const st = useGame.getState()
-    return [st.captain, ...(st.crew ?? [])].filter(Boolean).join(', ')
-  })
-  const [group, setGroup] = useState('')
-  const [appendix, setAppendix] = useState(true)
+  const [style, setStyle] = useDraft<DocStyle>('export-style', () => 'greek')
+  const [authors, setAuthors] = useDraft<string>('export-authors', () => gather().authors)
+  const [group, setGroup] = useDraft<string>('export-group', () => '')
+  const [appendix, setAppendix] = useDraft<boolean>('export-appendix', () => true)
+  const [scores, setScores] = useDraft<boolean>('export-scores', () => false)
   const [doc] = useState(gather)
-  const [chars, setChars] = useState(0)
+  const [version, setVersion] = useState(0) // bumped to rebuild the document from the voyage
+  const [chars, setChars] = useState<Record<string, number>>({})
   const [overflow, setOverflow] = useState<number[]>([])
   const ref = useRef<HTMLDivElement>(null)
   const count = () => {
-    const n = [...(ref.current?.querySelectorAll('[data-count]') ?? [])].reduce((m, el) => m + (el.textContent ?? '').length, 0)
-    setChars(n)
-    // pages 1 and 2 print on one sheet each: flag any that runs past the bottom
-    const pages = [...(ref.current?.querySelectorAll('.doc-page:not(.doc-appendix)') ?? [])] as HTMLElement[]
+    const m: Record<string, number> = {}
+    ref.current?.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => (m[el.dataset.k ?? ''] = (el.textContent ?? '').length))
+    setChars(m)
+    // every page prints on one sheet: flag any that runs past the bottom
+    const pages = [...(ref.current?.querySelectorAll('.doc-page') ?? [])] as HTMLElement[]
     setOverflow(pages.map((p, i) => (p.scrollHeight > p.clientHeight + 2 ? i + 1 : 0)).filter(Boolean))
   }
+  const total = Object.values(chars).reduce((m, n) => m + n, 0)
+  // keep each edit in the voyage (debounced by the store's storage)
+  const onInput = (e: React.FormEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-k]')
+    if (el?.dataset.k) useGame.getState().setDraft(`export:${el.dataset.k}`, el.innerText.replace(/\n{2,}/g, '\n').trim())
+    count()
+  }
+  const resetEdits = () => {
+    if (!confirm('Rebuild the document from your voyage answers? Your edits in the document will be lost.')) return
+    const st = useGame.getState()
+    useGame.setState({ drafts: Object.fromEntries(Object.entries(st.drafts).filter(([k]) => !k.startsWith('export:'))) })
+    setVersion((n) => n + 1)
+  }
   useEffect(() => {
-    const t = setTimeout(count, 100)
+    const t = setTimeout(count, 120)
+    return () => clearTimeout(t)
+  }, [appendix, scores, style, version])
+  // the parent re-renders on every store change (each saved edit), so keep its callback in a ref:
+  // re-running this effect would pull focus out of the text being edited
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
     const prev = document.title
     document.title = doc.name
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    // Escape closes the export, except while editing text (edits are kept either way)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && !(e.target as HTMLElement)?.isContentEditable && closeRef.current()
     window.addEventListener('keydown', esc)
+    ref.current?.closest<HTMLElement>('.export-root')?.focus()
     return () => {
-      clearTimeout(t)
       document.title = prev
       window.removeEventListener('keydown', esc)
     }
-  }, [doc.name, onClose])
+  }, [doc.name])
+  const print = () => {
+    if (overflow.length && !confirm(`Page ${overflow.join(' and ')} is too long and will be cut off in the PDF. Save anyway?`)) return
+    window.print()
+  }
   return createPortal(
-    <div className={`export-root doc-${style}`}>
+    <div className={`export-root doc-${style}`} role="dialog" aria-modal="true" aria-label="Your assignment" tabIndex={-1}>
       <div className="export-bar no-print">
         <b>Your assignment</b>
         <span className="seg" role="group" aria-label="Document style">
@@ -372,23 +466,33 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           <input type="text" value={group} placeholder="e.g. 7" onChange={(e) => setGroup(e.target.value)} />
         </label>
         <label className="chk">
-          <input type="checkbox" checked={appendix} onChange={(e) => setAppendix(e.target.checked)} /> Appendix with all fourteen directions
+          <input type="checkbox" checked={appendix} onChange={(e) => setAppendix(e.target.checked)} /> Appendix: all fourteen directions
         </label>
-        <span className={`chars ${chars > 1500 ? 'over' : ''}`} title="The course template allows 1,500 characters for Context, Innovation and Results together">
-          {chars}/1500 characters
+        {appendix && (
+          <label className="chk">
+            <input type="checkbox" checked={scores} onChange={(e) => setScores(e.target.checked)} /> Show Athena’s scores
+          </label>
+        )}
+        <span className={`chars ${total > LIMIT ? 'over' : ''}`} title="The course template allows 1,500 characters for Context, Innovation and Results together">
+          {SECTIONS.map(([k, label]) => `${label} ${chars[k] ?? 0}`).join(' · ')} = {total}/{LIMIT} characters
         </span>
         {overflow.length > 0 && <span className="chars over">Page {overflow.join(' and ')} is too long: shorten some text.</span>}
         <span className="grow" />
-        <button className="btn primary small" onClick={() => window.print()}>
+        <button className="btn small" onClick={resetEdits} title="Start the document again from your voyage answers">
+          Rebuild from answers
+        </button>
+        <button className="btn primary small" onClick={print}>
           Save as PDF
         </button>
         <button className="btn small" onClick={onClose}>
           Close
         </button>
-        <small className="hint-line">Click any text in the document to edit it before saving. In the print window, choose “Save as PDF”.</small>
+        <small className="hint-line">
+          Click any text to edit it; your edits are kept. In the print window choose “Save as PDF”, landscape, margins “None”, and tick “Background graphics”.
+        </small>
       </div>
-      <div className="export-pages" ref={ref} onInput={count}>
-        <AssignmentDoc doc={doc} appendix={appendix} authors={authors} group={group} />
+      <div className="export-pages" ref={ref} onInput={onInput}>
+        <AssignmentDoc key={version} doc={doc} appendix={appendix} scores={scores} authors={authors} group={group} />
       </div>
     </div>,
     document.body,

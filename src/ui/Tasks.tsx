@@ -1,11 +1,12 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { audio } from '../audio/engine'
 import { DIRECTIONS, directionById, type Direction, type Step } from '../content/directions'
-import { CONTRIBS, emptyLanding, flattenLanding, isNoFit, isOther, junkFields, missingFor, optionsFor, OTHER, stripOther, summaryOf, type Landing, type LandingValue, type NarrowsAnswer, type StepContext } from '../content/landing'
+import { allText, CONTRIBS, emptyLanding, ideaOf, midSentence, flattenLanding, isNoFit, isOther, junkFields, missingFor, optionsFor, OTHER, overlap, stripOther, summaryOf, type Landing, type LandingValue, type NarrowsAnswer, type StepContext } from '../content/landing'
 import { voyageById } from '../content/voyages'
 import { freeTravel, landedIn, useGame, type AeolusAnswer, type LemnosAnswer, type OlympusAnswer, type TroyAnswer } from '../store'
-import { Field, GradeView, SignToggle, wordCount } from './common'
+import { STOPS } from '../world/layout'
+import { Field, GradeView, RevisingNote, SignToggle, wordCount } from './common'
 import { useDraft, useGradedTask } from './useTask'
 import { ValueCurveEditor } from './ValueCurve'
 
@@ -42,6 +43,10 @@ function SubmitRow({
   label?: string
 }) {
   const [tried, setTried] = useState(false)
+  const alertRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (tried && missing.length) alertRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [tried, missing.length])
   return (
     <>
       <div className="submit-row">
@@ -66,7 +71,7 @@ function SubmitRow({
         )}
       </div>
       {tried && missing.length > 0 && (
-        <div className="hint" role="alert">
+        <div className="hint" role="alert" ref={alertRef}>
           <b>Before Athena can review it:</b>
           <ul className="missing">
             {missing.map((m) => (
@@ -88,10 +93,13 @@ const flatten = (o: Record<string, unknown>) =>
 
 export function TroyTask() {
   const voyage = voyageById(useGame((s) => s.voyageId))
+  const startup = useGame((s) => s.framing === 'startup')
   const troy = useGame((s) => s.troy)
   const saveTroy = useGame((s) => s.saveTroy)
-  const [a, setA] = useDraft<TroyAnswer>('troy', () => troy!.answer)
+  const [draft, setA] = useDraft<TroyAnswer>('troy', () => troy!.answer)
   const task = useGradedTask('troy', troy?.grades ?? [])
+  // a locked view always shows the answer Athena reviewed, never an abandoned revision
+  const a = task.editing || !troy ? draft : troy.answer
   const own = voyage.id === 'own'
   const up = (p: Partial<TroyAnswer>) => setA((x) => ({ ...x, ...p }))
   const missing = [
@@ -110,9 +118,17 @@ export function TroyTask() {
         <p className="kicker">
           <span className="badge ink">Step 1</span> The benchmark, not your new idea
         </p>
-        <h2>Troy: the traditional model</h2>
+        <h2 tabIndex={-1}>Troy: the traditional model</h2>
         <p className="lede">
-          Describe the business model <b>as it works today</b>, the way most of the industry does it. No new ideas yet: this is the benchmark you will reinvent on the islands and compare against at the forge.{' '}
+          {startup ? (
+            <>
+              You are a startup, so Troy is <b>the incumbents’ model you are attacking</b>: describe how the established players in your industry work today, not your startup. No new ideas yet: this is the benchmark your startup will beat on the islands and at the forge.
+            </>
+          ) : (
+            <>
+              Describe the business model <b>as it works today</b>, the way most of the industry does it. No new ideas yet: this is the benchmark you will reinvent on the islands and compare against at the forge.
+            </>
+          )}{' '}
           {own ? '' : 'This demo ship comes with Troy filled in, insights included: read it, adjust anything you disagree with, then submit.'}
         </p>
       </div>
@@ -122,7 +138,7 @@ export function TroyTask() {
             <h3>
               <span className="badge p">P</span> Value proposition today
             </h3>
-            <Field single label="What is offered" value={a.offer} onChange={(v) => up({ offer: v })} placeholder="e.g. Premium bikes sold in city stores" />
+            <Field label="What is offered" rows={2} value={a.offer} onChange={(v) => up({ offer: v })} placeholder="e.g. Premium bikes sold in city stores" />
             <div className="grid2">
               <Field single label="Who uses it" value={a.user} onChange={(v) => up({ user: v })} />
               <Field single label="Who decides to buy" value={a.decider} onChange={(v) => up({ decider: v })} />
@@ -169,8 +185,9 @@ export function TroyTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && (
-          <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />
+        {task.revising && <RevisingNote onCancel={() => (setA(troy!.answer), task.setEditing(false))} />}
+        {task.last && (
+          <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise && !task.editing} onRevise={() => task.setEditing(true)} onRetry={task.editing ? undefined : task.retry} busy={task.busy} />
         )}
       </div>
     </>
@@ -179,9 +196,11 @@ export function TroyTask() {
 
 // ---------------------------------------------------------------- islands
 
-function shuffleFor(id: number, n: number) {
+// Options are shuffled per voyage (seeded by its start time), so the right answer is not in the same
+// place for everyone in the room, but stays put if the player reloads.
+function shuffleFor(id: number, n: number, seed: number) {
   const order = Array.from({ length: n }, (_, i) => i)
-  let s = id * 9301 + 49297
+  let s = (id * 9301 + 49297 + (seed % 100003)) % 233280
   for (let i = n - 1; i > 0; i--) {
     s = (s * 9301 + 49297) % 233280
     const j = Math.floor((s / 233280) * (i + 1))
@@ -194,7 +213,13 @@ function Quiz({ d }: { d: Direction }) {
   const check = useGame((s) => s.checks[d.id])
   const answerCheck = useGame((s) => s.answerCheck)
   const say = useGame((s) => s.say)
-  const order = useMemo(() => shuffleFor(d.id, d.quiz.options.length), [d])
+  const seed = useGame((s) => s.startedAt ?? 0)
+  const order = useMemo(() => shuffleFor(d.id, d.quiz.options.length, seed), [d, seed])
+  const whyRef = useRef<HTMLDivElement>(null)
+  // a right answer disables every option: move focus to the explanation so keyboard users keep their place
+  useEffect(() => {
+    if (check?.done && document.activeElement === document.body) whyRef.current?.focus()
+  }, [check?.done])
   return (
     <div className="section">
       <h3>
@@ -230,12 +255,12 @@ function Quiz({ d }: { d: Direction }) {
         })}
       </div>
       {check?.done && (
-        <div className="why">
+        <div className="why" role="status" tabIndex={-1} ref={whyRef}>
           <b>{check.wrong.length === 0 ? 'Right first time (+1). ' : check.wrong.length === 1 ? 'Second try (+0.4). ' : 'Found it, but no points this time. '}</b>
           {d.quiz.why}
         </div>
       )}
-      {!check?.done && !!check?.wrong.length && <div className="why">Not quite. Think about the mechanism of the direction, not just the words of the case, and try again.</div>}
+      {!check?.done && !!check?.wrong.length && <div className="why" role="status">Not quite. Think about the mechanism of the direction, not just the words of the case, and try again.</div>}
     </div>
   )
 }
@@ -244,6 +269,7 @@ function stepContext(): StepContext {
   const s = useGame.getState()
   return {
     attributes: s.troy?.answer.attributes.map((x) => x.name) ?? [],
+    lowerable: s.troy?.answer.attributes.filter((x) => x.level > 1).map((x) => x.name) ?? [],
     chain: s.narrows?.chain ?? [],
     resources: s.narrows?.resources ?? [],
   }
@@ -281,7 +307,7 @@ function StepInput({ step, n, value, onChange }: { step: Step; n: string; value:
       )
     }
     case 'text':
-      return <Field single={step.short} label={label} limit={step.short ? undefined : step.max} rows={3} value={String(value ?? '')} onChange={onChange} placeholder={step.placeholder} />
+      return <Field single={step.short} label={label} limit={step.max} rows={3} value={String(value ?? '')} onChange={onChange} placeholder={step.placeholder} />
     case 'slots': {
       const arr = (value as string[]) ?? step.slots.map(() => '')
       return (
@@ -304,7 +330,7 @@ function StepInput({ step, n, value, onChange }: { step: Step; n: string; value:
         <div className="field">
           <div className="field-label stack">
             <span>{label}</span>
-            <small className="legend">+ better, 0 no change, {'−'} worse</small>
+            <small className="legend">+ improves, 0 no change, {'−'} worsens</small>
           </div>
           {CONTRIBS.map((k) => (
             <div className="contrib-row" key={k}>
@@ -338,14 +364,25 @@ function StepInput({ step, n, value, onChange }: { step: Step; n: string; value:
 function IslandWork({ d }: { d: Direction }) {
   const record = useGame((s) => s.landings[d.id])
   const saveLanding = useGame((s) => s.saveLanding)
-  const [a, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding(d))
+  const [draft, setA] = useDraft<Landing>(`land${d.id}`, () => record?.answer ?? emptyLanding(d))
   const task = useGradedTask(`land${d.id}`, record?.grades ?? [])
+  const a = task.editing || !record ? draft : record.answer
   const nofit = isNoFit(a)
-  const missing = missingFor(d, a)
+  // the same answer pasted on several islands is not fourteen explorations
+  const twin = useGame((s) => {
+    const mine = allText(a)
+    if (mine.split(/\s+/).length < 8) return null
+    const other = DIRECTIONS.find((o) => o.id !== d.id && s.landings[o.id] && overlap(mine, allText(s.landings[o.id].answer)) >= 0.8)
+    return other?.id ?? null
+  })
+  // reasoned "doesn't fit" answers score, but only ideas go forward to Aeolus
+  const ideasInSea = useGame((s) => DIRECTIONS.filter((o) => o.pillar === d.pillar && o.id !== d.id && s.landings[o.id] && !isNoFit(s.landings[o.id].answer)).length)
+  const islandsLeft = useGame((s) => DIRECTIONS.filter((o) => o.pillar === d.pillar && o.id !== d.id && !s.landings[o.id]).length)
+  const missing = [...missingFor(d, a), ...(twin ? [`This is almost the same answer as on island ${twin}. Each direction needs its own idea (or its own reason why it does not fit).`] : [])]
   const req = { kind: 'landing' as const, directionId: d.id, answer: flattenLanding(d, a), extra: a }
   return (
     <div className="section" id="landing">
-      <h3>Apply direction {d.id} to Troy</h3>
+      <h3>{nofit ? `Why direction ${d.id} does not fit Troy` : `Apply direction ${d.id} to Troy`}</h3>
       <div className="why-box">
         <b>Why these questions?</b> {d.why}
       </div>
@@ -358,6 +395,16 @@ function IslandWork({ d }: { d: Direction }) {
             This direction doesn’t fit my business
           </button>
         </div>
+        {nofit && (
+          <p className={`count nofit-note ${ideasInSea === 0 && islandsLeft === 0 ? 'warn' : ''}`}>
+            A reasoned “doesn’t fit” scores like an idea, but only ideas go forward to Aeolus, where you need one from each sea.{' '}
+            {ideasInSea === 0
+              ? islandsLeft === 0
+                ? 'This is your last island in this sea and you have no idea from it yet: Aeolus will send you back.'
+                : `You have no idea from this sea yet (${islandsLeft} island${islandsLeft > 1 ? 's' : ''} left).`
+              : `You already have ${ideasInSea} idea${ideasInSea > 1 ? 's' : ''} from this sea.`}
+          </p>
+        )}
         {nofit ? (
           <Field
             label="Why doesn’t it fit? And what would have to change for it to fit?"
@@ -382,7 +429,16 @@ function IslandWork({ d }: { d: Direction }) {
           hintBusy={task.hintBusy}
         />
       )}
-      {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
+      {task.revising && <RevisingNote onCancel={() => (setA(record!.answer), task.setEditing(false))} />}
+      {task.last && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise && !task.editing} onRevise={() => task.setEditing(true)} onRetry={task.editing ? undefined : task.retry} busy={task.busy} />}
+      {nofit && !task.editing && (
+        <div className="submit-row">
+          <button type="button" className="btn small" onClick={() => (setA({ ...a, _mode: 'fit' }), task.setEditing(true))}>
+            Turn this into an idea instead
+          </button>
+          <small className="count">Only ideas can be taken forward to Aeolus. Switching does not use up your revision.</small>
+        </div>
+      )}
     </div>
   )
 }
@@ -398,7 +454,7 @@ export function IslandTask({ id }: { id: number }) {
           <span className={`badge ${d.pillar === 'proposition' ? 'p' : 'a'}`}>{d.pillar === 'proposition' ? 'P' : 'A'}</span>
           Direction {d.id} of 14, {sea}
         </p>
-        <h2>{d.name}</h2>
+        <h2 tabIndex={-1}>{d.name}</h2>
         <p className="lede">{d.definition}</p>
       </div>
       <div className="panel-body">
@@ -423,22 +479,39 @@ export function IslandTask({ id }: { id: number }) {
 
 const padTo = (xs: string[], n: number) => [...xs, ...Array(Math.max(0, n - xs.length)).fill('')].slice(0, Math.max(n, xs.length))
 
-const STEP_IDEAS = ['Research and design', 'Source materials', 'Produce', 'Quality control', 'Market', 'Sell', 'Deliver', 'Install or set up', 'Support customers', 'Repair', 'Take back or recycle']
-const RESOURCE_IDEAS = ['Brand', 'Patents', 'Know-how', 'Customer data', 'Partner network', 'Facilities', 'Licences', 'Talent']
+// Universal enough for products, services and digital businesses alike
+const STEP_IDEAS = ['Research and design', 'Source materials', 'Produce', 'Market', 'Sell', 'Deliver', 'Support customers', 'Recruit and train staff', 'Book or schedule', 'Deliver the service', 'Bill and collect payment', 'Build and run the platform', 'Create content', 'Repair', 'Take back or recycle']
+const RESOURCE_IDEAS = ['Brand', 'Know-how', 'Customer data', 'Partner network', 'Qualified staff', 'Licences or accreditations', 'Facilities', 'Technology platform', 'Patents', 'Audience or community']
 
 // An editable list: add, rename, reorder and remove rows; quick-add chips for common entries.
 function ListBuilder({ items, onChange, min, max, ideas, label, placeholder }: { items: string[]; onChange: (xs: string[]) => void; min: number; max: number; ideas: string[]; label: string; placeholder: (i: number) => string }) {
+  const list = useRef<HTMLOListElement>(null)
+  // keyboard users keep their place: focus follows the moved row, or the new empty row
+  const focusRow = (i: number, what: 'input' | 'up' | 'down') =>
+    requestAnimationFrame(() => {
+      const li = list.current?.children[i] as HTMLElement | undefined
+      const el = what === 'input' ? li?.querySelector('input') : li?.querySelectorAll('button')[what === 'up' ? 0 : 1]
+      const target = (el as HTMLButtonElement | null)?.disabled ? li?.querySelector('input') : el
+      ;(target as HTMLElement | null)?.focus()
+      li?.scrollIntoView({ block: 'nearest' })
+    })
   const move = (i: number, d: number) => {
     const j = i + d
     if (j < 0 || j >= items.length) return
     const next = [...items]
     ;[next[i], next[j]] = [next[j], next[i]]
     onChange(next)
+    focusRow(j, d < 0 ? 'up' : 'down')
   }
-  const add = (text = '') => items.length < max && onChange([...items.filter((x, i) => x.trim() || i < min), text].slice(0, max))
+  const add = (text = '') => {
+    if (items.length >= max) return
+    const next = [...items.filter((x, i) => x.trim() || i < min), text].slice(0, max)
+    onChange(next)
+    if (!text) focusRow(next.length - 1, 'input')
+  }
   return (
     <>
-      <ol className="list-builder">
+      <ol className="list-builder" ref={list}>
         {items.map((x, i) => (
           <li key={i}>
             <span className="lb-n">{i + 1}</span>
@@ -493,7 +566,9 @@ export function NarrowsTask() {
     resources: padTo(narrows?.resources ?? [], 2),
     partners: narrows?.partners ?? '',
   }))
-  const [editing, setEditing] = useState(!narrows)
+  const [editDraft, setEditing] = useDraft<boolean>('editing:narrows', () => false)
+  const editing = !narrows || editDraft
+  const startup = useGame((s) => s.framing === 'startup')
   const [tried, setTried] = useState(false)
   const filled = (xs: string[]) => xs.filter((x) => x.trim()).length
   const missing = [
@@ -507,9 +582,9 @@ export function NarrowsTask() {
         <p className="kicker">
           <span className="badge ink">Passage</span> Between the two seas
         </p>
-        <h2>The Narrows</h2>
+        <h2 tabIndex={-1}>The Narrows</h2>
         <p className="lede">
-          You leave the Sea of the Value Proposition (what you offer, to whom, at what price) for the Sea of the Value Architecture (how you build and deliver it). Before Scylla and Charybdis, chart how Troy is built today: the next seven islands will ask you to change these very steps and resources.
+          You leave the Sea of the Value Proposition (what you offer, to whom, at what price) for the Sea of the Value Architecture (how you build and deliver it). Before Scylla and Charybdis, chart how Troy is built today{startup ? ' (the incumbents’ value chain, not your startup’s)' : ''}: the next seven islands will ask you to change these very steps and resources.
         </p>
       </div>
       <div className="panel-body">
@@ -548,6 +623,18 @@ export function NarrowsTask() {
               >
                 Chart the course
               </button>
+              {narrows && (
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => {
+                    setA({ chain: padTo(narrows.chain, 4), resources: padTo(narrows.resources, 2), partners: narrows.partners })
+                    setEditing(false)
+                  }}
+                >
+                  Cancel changes
+                </button>
+              )}
             </div>
             {tried && missing.length > 0 && (
               <div className="hint" role="alert">
@@ -596,9 +683,12 @@ const indicatorLabel = (key?: string) => {
   for (const g of INDICATORS) for (const [k, label] of g.items as readonly (readonly [string, string])[]) if (k === key) return label
   return ''
 }
+const gainText = (key?: string) => {
+  const l = indicatorLabel(key)
+  return l.startsWith('GHG') ? l : l.toLowerCase()
+}
 
 export function AeolusTask() {
-  const landings = useGame((s) => s.landings)
   const aeolus = useGame((s) => s.aeolus)
   const saveAeolus = useGame((s) => s.saveAeolus)
   // only islands where the player had an idea can be combined; reasoned "doesn't fit" answers stay out
@@ -608,26 +698,29 @@ export function AeolusTask() {
     (freeTravel(s) ? DIRECTIONS.filter((d) => d.pillar === sea && answerOf(s, d.id)).map((d) => d.id) : landedIn(s, sea)).filter((id) => !isNoFit(answerOf(s, id)))
   const pIds = useGame(useShallow((s) => pool(s, 'proposition')))
   const aIds = useGame(useShallow((s) => pool(s, 'architecture')))
-  const [a, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: null, a: null, promise: '', enabler: '', link: '', who: '', gain: '', sentence: '' })
+  const [draft, setA] = useDraft<AeolusAnswer>('aeolus', () => aeolus?.answer ?? { p: null, a: null, promise: '', enabler: '', link: '', who: '', gain: '', sentence: '' })
   const [advice, setAdvice] = useState('')
   const task = useGradedTask('aeolus', aeolus?.grades ?? [])
+  const a = task.editing || !aeolus ? draft : aeolus.answer
   const missingSea = pIds.length === 0 ? 'proposition' : aIds.length === 0 ? 'architecture' : null
   const idea = (id: number | null) => (id ? summaryOf(directionById(id), answerOf(useGame.getState(), id)).replace(/\.$/, '') : '')
-  const score = (id: number) => landings[id]?.grades.at(-1)
+  const core = (id: number) => ideaOf(directionById(id), answerOf(useGame.getState(), id)) || idea(id)
   const gainLabel = indicatorLabel(a.gain)
   const assemble = (x: AeolusAnswer) =>
-    x.enabler && x.promise ? `Because ${x.enabler.replace(/\.$/, '')}, we can promise ${x.promise.replace(/\.$/, '')}${x.who ? ` to ${x.who}` : ''}. It holds because ${x.link?.replace(/\.$/, '') || '…'}.${x.gain ? ` Biggest gain: ${indicatorLabel(x.gain).toLowerCase()}.` : ''}` : ''
+    x.enabler && x.promise
+      ? `Because ${midSentence(x.enabler)}, we can promise ${midSentence(x.promise)}${x.who ? ` to ${midSentence(x.who)}` : ''}. It holds because ${midSentence(x.link ?? '') || '…'}.${x.gain ? ` Biggest gain: ${gainText(x.gain)}.` : ''}`
+      : ''
   const up = (p: Partial<AeolusAnswer>) => setA((x) => ({ ...x, ...p, sentence: assemble({ ...x, ...p }) }))
   // choosing an idea prefills its text; the player then edits it into one coherent plan
-  const pick = (side: 'p' | 'a', id: number) => up(side === 'p' ? { p: id, promise: idea(id) } : { a: id, enabler: idea(id) })
+  const pick = (side: 'p' | 'a', id: number) => up(side === 'p' ? { p: id, promise: core(id) } : { a: id, enabler: core(id) })
 
+  // Selection is a separate judgement from the island reviews: scores stay hidden here, and the
+  // advice is a set of criteria to compare the candidates against, not a ranking.
   const askAdvice = () => {
     audio.click()
-    const best = (ids: number[]) => [...ids].sort((x, y) => (score(y)?.total ?? 0) - (score(x)?.total ?? 0))[0]
-    const bp = best(pIds)
-    const ba = best(aIds)
+    const t = useGame.getState().troy?.answer
     setAdvice(
-      `Your strongest-reviewed ideas are island ${bp} (${score(bp)?.total ?? 0}/6) for the proposition and island ${ba} (${score(ba)?.total ?? 0}/6) for the architecture. But a high score alone does not make a model: choose the architecture idea that actually makes your promise possible. Ask yourself: if island ${ba}’s change did not happen, could you still keep island ${bp}’s promise? If yes, look for a better pair.`,
+      `Compare your candidates on three questions, not on their island scores. 1. Which promise attacks the frustration you named at Troy${t?.frustration ? ` (“${t.frustration.trim().slice(0, 80)}”)` : ''}? 2. For that promise, which architecture change is truly necessary: if it did not happen, could you still keep the promise? If yes, it is the wrong pair. 3. Which pair would Troy find hardest to copy within a year? The pair that wins on all three is your plan.`,
     )
   }
 
@@ -638,11 +731,18 @@ export function AeolusTask() {
           <p className="kicker">
             <span className="badge ink">Test</span> Does it hold together?
           </p>
-          <h2>Aeolus, keeper of the winds</h2>
+          <h2 tabIndex={-1}>Aeolus, keeper of the winds</h2>
         </div>
         <div className="panel-body">
           <div className="hint">
-            <b>Aeolus says:</b> the winds need at least one real idea from each sea, and you marked every island in the Sea of the Value {missingSea === 'proposition' ? 'Proposition' : 'Architecture'} as not fitting. Sail back to the island that came closest (use the voyage ribbon at the top), switch it to “I have an idea”, and resubmit.
+            <b>Aeolus says:</b> the winds need at least one real idea from each sea, and you have none yet from the Sea of the Value {missingSea === 'proposition' ? 'Proposition' : 'Architecture'}. Sail back to the island that came closest, press “Turn this into an idea instead”, and submit your idea. It does not use up your revision.
+          </div>
+          <div className="checks back-links">
+            {DIRECTIONS.filter((d) => d.pillar === missingSea).map((d) => (
+              <button key={d.id} type="button" className="pick" onClick={() => (audio.click(), useGame.getState().sailTo(STOPS.findIndex((x) => x.directionId === d.id)))}>
+                {d.id}. {d.short}
+              </button>
+            ))}
           </div>
         </div>
       </>
@@ -675,7 +775,7 @@ export function AeolusTask() {
         <p className="kicker">
           <span className="badge ink">Test</span> Does it hold together?
         </p>
-        <h2>Aeolus, keeper of the winds</h2>
+        <h2 tabIndex={-1}>Aeolus, keeper of the winds</h2>
         <p className="lede">
           A business model only works when what you promise (value proposition) and how you deliver it (value architecture) hold together. Choose one idea from each sea, then show how the second makes the first possible. Your plan becomes the core of the model you forge on Lemnos.
         </p>
@@ -689,7 +789,7 @@ export function AeolusTask() {
             <div className="idea-cards">
               {pIds.map((id) => (
                 <button key={id} className="god" aria-pressed={a.p === id} onClick={() => pick('p', id)}>
-                  <b>{id}.</b> {idea(id)} <small className="count">Athena {score(id)?.total ?? 0}/6</small>
+                  <b>{id}.</b> {idea(id)}
                 </button>
               ))}
             </div>
@@ -701,7 +801,7 @@ export function AeolusTask() {
             <div className="idea-cards">
               {aIds.map((id) => (
                 <button key={id} className="god" aria-pressed={a.a === id} onClick={() => pick('a', id)}>
-                  <b>{id}.</b> {idea(id)} <small className="count">Athena {score(id)?.total ?? 0}/6</small>
+                  <b>{id}.</b> {idea(id)}
                 </button>
               ))}
             </div>
@@ -764,7 +864,8 @@ export function AeolusTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
+        {task.revising && <RevisingNote onCancel={() => (setA(aeolus!.answer), task.setEditing(false))} />}
+        {task.last && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise && !task.editing} onRevise={() => task.setEditing(true)} onRetry={task.editing ? undefined : task.retry} busy={task.busy} />}
       </div>
     </>
   )
@@ -790,91 +891,129 @@ export function LemnosTask() {
   const troy = useGame((s) => s.troy!.answer)
   const lemnos = useGame((s) => s.lemnos)
   const aeolus = useGame((s) => s.aeolus?.answer)
+  const troyChain = useGame(useShallow((s) => s.narrows?.chain ?? []))
   const saveLemnos = useGame((s) => s.saveLemnos)
-  const [a, setA] = useDraft<LemnosAnswer>('lemnos', () => {
+  const [draft, setA] = useDraft<LemnosAnswer>('lemnos', () => {
     if (lemnos) return lemnos.answer
+    const s = useGame.getState()
+    const price7 = s.landings[7] && !isNoFit(s.landings[7].answer) ? ideaOf(directionById(7), s.landings[7].answer) : ''
     return {
       name: '',
-      pitch: aeolus?.sentence ?? '',
+      pitch: '',
       curve: troy.attributes.map((x) => x.level),
+      added: [],
+      chain: padTo(s.narrows?.chain ?? [], 4),
+      price: price7 || troy.price,
       zone: '',
-      indicators: {
-        revenue: '',
-        costs: '',
-        capital: '',
-        ghg: '',
-        pollutants: '',
-        resources: '',
-        employability: '',
-        quality: '',
-        fairness: '',
-      },
+      indicators: { revenue: '', costs: '', capital: '', ghg: '', pollutants: '', resources: '', employability: '', quality: '', fairness: '' },
       antagonism: '',
     }
   })
   const task = useGradedTask('lemnos', lemnos?.grades ?? [])
+  const a = task.editing || !lemnos ? draft : lemnos.answer
+  const up = (p: Partial<LemnosAnswer>) => setA((x) => ({ ...x, ...p }))
   const before = troy.attributes.map((x) => x.level)
   const curve = troy.attributes.map((x, i) => a.curve[i] ?? x.level)
+  const added = a.added ?? []
+  const chain = a.chain ?? troyChain
   const lowered = curve.some((v, i) => v < before[i])
   const lowered4 = useGame((s) => String(s.landings[4]?.answer.lower ?? '').replace(/^Other: /, ''))
+  const filledChain = chain.map((x) => x.trim()).filter(Boolean)
+  const sameChain = filledChain.join('|').toLowerCase() === troyChain.join('|').toLowerCase()
+  const archIdea = aeolus?.a ? directionById(aeolus.a) : null
   const missing = [
     !a.name.trim() && 'Give your business model a name.',
     wordCount(a.pitch) < 8 && 'Write a pitch of at least 8 words.',
+    wordCount(a.pitch) > 45 && `Cut the pitch to one sentence of about 35 words (it has ${wordCount(a.pitch)}).`,
+    added.some((x) => !x.name.trim()) && 'Name every new attribute you added to the curve, or remove it.',
+    wordCount(a.price ?? '') < 3 && 'Say how the new model earns money and at what price (at least 3 words).',
     !a.zone && 'Choose a position on the perceived value versus price map.',
+    filledChain.length < 3 && 'Your new value chain needs at least 3 steps.',
+    filledChain.length >= 3 && sameChain && `Your new value chain is identical to Troy’s. Apply your architecture idea${archIdea ? ` (island ${archIdea.id}, ${archIdea.short})` : ''}: which step changes, disappears or is added?`,
     !Object.values(a.indicators).every(Boolean) && 'Set all nine contribution indicators to +, 0 or \u2212.',
     wordCount(a.antagonism) < 5 && 'Name the main antagonism (at least 5 words).',
-    junkFields([a.name, a.pitch, a.antagonism]) && 'Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.',
+    junkFields([a.name, a.pitch, a.antagonism, a.price ?? '', ...chain, ...added.map((x) => x.name)]) && 'Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.',
   ].filter(Boolean) as string[]
+  const chainDiff = () => {
+    const old = new Set(troyChain.map((x) => x.toLowerCase()))
+    const now = new Set(filledChain.map((x) => x.toLowerCase()))
+    const removed = troyChain.filter((x) => !now.has(x.toLowerCase()))
+    const added2 = filledChain.filter((x) => !old.has(x.toLowerCase()))
+    return `removed: ${removed.join(', ') || 'none'}; added or changed: ${added2.join(', ') || 'none'}`
+  }
   const req = {
     kind: 'lemnos' as const,
     answer: [
       `Name: ${a.name}`,
       `Pitch: ${a.pitch}`,
-      `Value curve (attribute: before -> after): ${troy.attributes.map((x, i) => `${x.name}: ${before[i]} -> ${curve[i]}`).join('; ')}`,
+      `Value curve (attribute: Troy -> new; 0 = eliminated, Troy 0 = newly created): ${[...troy.attributes.map((x, i) => `${x.name}: ${before[i]} -> ${curve[i]}`), ...added.map((x) => `${x.name} (new): 0 -> ${x.level}`)].join('; ')}`,
+      `Price and revenue model: ${a.price ?? ''} (Troy: ${troy.price})`,
       `Positioning zone: ${a.zone}`,
+      `New value chain: ${filledChain.join(' > ')} (Troy: ${troyChain.join(' > ')}; ${chainDiff()})`,
       `Contributions: ${Object.entries(a.indicators).map(([k, v]) => `${k} ${v}`).join(', ')}`,
       `Main antagonism: ${a.antagonism}`,
     ].join('\n'),
-    extra: { ...a, curve, before },
+    extra: { ...a, curve: [...curve, ...added.map((x) => x.level)], before: [...before, ...added.map(() => 0)] },
   }
+  const save = (g: Parameters<typeof saveLemnos>[1]) => saveLemnos({ ...a, curve, chain: filledChain }, g)
   return (
     <>
       <div className="panel-head">
         <p className="kicker">
           <span className="badge ink">Forge</span> Crystallise your new business model
         </p>
-        <h2>Lemnos, Hephaestus' forge</h2>
-        <p className="lede">Hammer your ideas into one business model: a name, a pitch, a new value curve, a position on the market and its contributions.</p>
+        <h2 tabIndex={-1}>Lemnos, Hephaestus' forge</h2>
+        <p className="lede">Hammer your plan into one business model, pillar by pillar: the value proposition (curve, name, pitch, price), the value architecture (the new value chain) and the contributions.</p>
       </div>
       <div className="panel-body">
+        {aeolus?.sentence && (
+          <div className="case">
+            <small className="count">Your Aeolus plan</small>
+            <br />
+            {aeolus.sentence}
+          </div>
+        )}
         <fieldset disabled={!task.editing} style={{ border: 0, padding: 0, margin: 0 }}>
           <div className="section">
             <h3>
               <span className="badge p">P</span> Redraw your value curve
             </h3>
             <p className="vc-intro">
-              Start here: the value curve shows your new model at a glance. The dashed line is Troy; drag the points to where your new offer stands. Raise what your islands added, and lower at least one attribute on purpose.
+              The dashed line is Troy; drag the points to where your new offer stands. The four Blue Ocean moves: <b>raise</b> and <b>create</b> what your plan adds (add up to three attributes Troy never offered), <b>reduce</b> and <b>eliminate</b> what you stop doing (drag a point to × at the bottom).
               {lowered4 ? ` On island 4 you chose to lower “${lowered4}”.` : ''}
             </p>
             <ValueCurveEditor
-              attributes={troy.attributes.map((x, i) => ({ name: x.name, level: curve[i] }))}
-              onChange={(attrs) => setA({ ...a, curve: attrs.map((x) => x.level) })}
-              reference={before}
-              editableNames={false}
+              attributes={[...troy.attributes.map((x, i) => ({ name: x.name, level: curve[i] })), ...added]}
+              onChange={(attrs) => up({ curve: attrs.slice(0, troy.attributes.length).map((x) => x.level), added: attrs.slice(troy.attributes.length) })}
+              reference={[...before, ...added.map(() => 0)]}
+              editableNames={troy.attributes.length}
+              min={troy.attributes.length}
+              max={Math.min(10, troy.attributes.length + 3)}
+              minLevel={0}
+              addLabel="+ Create a new attribute"
               currentLabel="Your new model"
             />
-            {!lowered && <div className="hint">Not everything can be better. Which attribute do you deliberately lower to afford the new ones?</div>}
+            {!lowered && <div className="hint">Not everything can be better. Which attribute do you deliberately lower or eliminate to afford the new ones?</div>}
           </div>
-          <Field single label="A (fun) name for your new business model" value={a.name} onChange={(v) => setA({ ...a, name: v })} />
-          <Field label="One-line pitch" limit={35} value={a.pitch} onChange={(v) => setA({ ...a, pitch: v })} placeholder="For [who], [name] offers [what], unlike Troy, because [how]." />
+          <Field single label="A (fun) name for your new business model" value={a.name} onChange={(v) => up({ name: v })} />
+          <Field label="One-line pitch" limit={35} value={a.pitch} onChange={(v) => up({ pitch: v })} placeholder="For [who], [name] offers [what], unlike Troy, because [how]." />
           <div className="section">
-            <h3>Perceived value versus price</h3>
+            <h3>
+              <span className="badge p">P</span> Price and positioning
+            </h3>
+            <Field
+              label={`How does the new model earn money, and at what price? (Troy: ${troy.price})`}
+              limit={30}
+              value={a.price ?? ''}
+              onChange={(v) => up({ price: v })}
+              placeholder="e.g. a monthly subscription at €29, instead of a one-off purchase"
+            />
             <p className="count" style={{ marginTop: 0 }}>
-              Your positioning against Troy: do customers get more or less value, and do they pay more or less? Pick the zone your curve and price really put you in.
+              Against Troy: do customers get more or less value, and do they pay more or less? Pick the zone your curve and your price really put you in.
             </p>
             <div className="zones">
               {ZONES.map((z) => (
-                <button key={z.id} className="zone" aria-pressed={a.zone === z.id} onClick={() => setA({ ...a, zone: z.id })}>
+                <button key={z.id} className="zone" aria-pressed={a.zone === z.id} onClick={() => up({ zone: z.id })}>
                   <b>{z.label}</b>
                   {z.text}
                 </button>
@@ -883,10 +1022,19 @@ export function LemnosTask() {
           </div>
           <div className="section">
             <h3>
+              <span className="badge a">A</span> Your new value chain
+            </h3>
+            <p className="count" style={{ marginTop: 0 }}>
+              This is Troy’s chain from the Narrows. Rebuild it for the new model{archIdea ? `, starting with your architecture idea (island ${archIdea.id}, ${archIdea.short.toLowerCase()})` : ''}: rename the steps that change, remove the ones you drop, add the new ones.
+            </p>
+            <ListBuilder items={chain} onChange={(c) => up({ chain: c })} min={3} max={12} ideas={STEP_IDEAS} label="step" placeholder={(i) => (i < 3 ? 'required' : 'optional')} />
+          </div>
+          <div className="section">
+            <h3>
               <span className="badge c">C</span> Contributions, nine indicators
             </h3>
             <p className="count" style={{ marginTop: 0 }}>
-              Compared with Troy: + better, 0 no change, {'−'} worse. Be honest: a model that is better on all nine is rarely credible.
+              Compared with Troy: <b>+</b> the indicator improves, <b>0</b> no change, <b>{'−'}</b> it worsens. For costs, capital, emissions, pollutants and scarce resources, improving means going <i>down</i>. A model that improves all nine is rarely credible.
             </p>
             <table className="ind-table">
               <tbody>
@@ -899,7 +1047,7 @@ export function LemnosTask() {
                       <tr key={k}>
                         <td>{label}</td>
                         <td>
-                          <SignToggle label={label} value={a.indicators[k] ?? ''} onChange={(v) => setA({ ...a, indicators: { ...a.indicators, [k]: v } })} />
+                          <SignToggle label={label} value={a.indicators[k] ?? ''} onChange={(v) => up({ indicators: { ...a.indicators, [k]: v } })} />
                         </td>
                       </tr>
                     ))}
@@ -907,21 +1055,15 @@ export function LemnosTask() {
                 ))}
               </tbody>
             </table>
-            <Field label="The main antagonism" limit={30} value={a.antagonism} onChange={(v) => setA({ ...a, antagonism: v })} placeholder="Where do financial, environmental and societal contributions pull against each other?" />
+            <Field label="The main antagonism" limit={30} value={a.antagonism} onChange={(v) => up({ antagonism: v })} placeholder="Where do financial, environmental and societal contributions pull against each other?" />
           </div>
         </fieldset>
         <HintBox hints={task.hints} />
         {task.editing && (
-          <SubmitRow
-            busy={task.busy}
-            missing={missing}
-            onSubmit={() => task.submit(req, (g) => saveLemnos({ ...a, curve }, g))}
-            onHint={() => task.ask(req)}
-            hintsLeft={task.hintsLeft}
-            hintBusy={task.hintBusy}
-          />
+          <SubmitRow busy={task.busy} missing={missing} onSubmit={() => task.submit(req, save)} onHint={() => task.ask(req)} hintsLeft={task.hintsLeft} hintBusy={task.hintBusy} />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
+        {task.revising && <RevisingNote onCancel={() => (setA(lemnos!.answer), task.setEditing(false))} />}
+        {task.last && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise && !task.editing} onRevise={() => task.setEditing(true)} onRetry={task.editing ? undefined : task.retry} busy={task.busy} />}
       </div>
     </>
   )
@@ -934,22 +1076,34 @@ export const GODS = [
   { id: 'poseidon', name: 'Poseidon, the incumbent', q: 'When Troy’s champion copies you next year, what makes you hard to imitate?' },
   { id: 'demeter', name: 'Demeter, the earth', q: 'Which environmental indicator gets worse because of your model, and what will you do about it?' },
   { id: 'hestia', name: 'Hestia, the hearth', q: 'Who in society loses out (employees, suppliers, communities), and is the value shared fairly?' },
+  { id: 'ares', name: 'Ares, your own troops', q: 'Who inside Troy (sales force, partners, your current offer) loses if this succeeds, and how will you roll it out without them sinking it?' },
+]
+
+const PILLARS = [
+  { k: 'p' as const, badge: 'p', label: 'Value proposition', ph: 'e.g. Fleet managers will pay per kilometre instead of buying tyres' },
+  { k: 'a' as const, badge: 'a', label: 'Value architecture', ph: 'e.g. Our dealers can collect usage data from 500 trucks' },
+  { k: 'c' as const, badge: 'c', label: 'Contributions', ph: 'e.g. Retreading cuts raw-material use by a third without raising costs' },
 ]
 
 export function OlympusTask() {
   const olympus = useGame((s) => s.olympus)
   const lemnos = useGame((s) => s.lemnos?.answer)
   const saveOlympus = useGame((s) => s.saveOlympus)
-  const [a, setA] = useDraft<OlympusAnswer>('olympus', () => olympus?.answer ?? { god: '', answer: '', assumption: '', mvp: '', stake: '' })
+  const [draft, setA] = useDraft<OlympusAnswer>('olympus', () => olympus?.answer ?? { god: '', answer: '', hypotheses: { p: '', a: '', c: '' }, riskiest: undefined, assumption: '', mvp: '', stake: '' })
   const task = useGradedTask('olympus', olympus?.grades ?? [])
+  const a = task.editing || !olympus ? draft : olympus.answer
   const god = GODS.find((g) => g.id === a.god)
+  const hyp = a.hypotheses ?? { p: '', a: '', c: '' }
+  const setHyp = (k: 'p' | 'a' | 'c', v: string) => setA({ ...a, hypotheses: { ...hyp, [k]: v }, ...(a.riskiest === k ? { assumption: v } : {}) })
   const missing = [
     !god && 'Choose one god to answer.',
     god && wordCount(a.answer) < 8 && 'Answer the god in at least 8 words.',
+    PILLARS.some((x) => wordCount(hyp[x.k]) < 4) && 'Write one hypothesis per pillar (at least 4 words each).',
+    !a.riskiest && 'Mark the riskiest of your three hypotheses.',
     wordCount(a.assumption) < 4 && 'State your riskiest assumption (at least 4 words).',
     wordCount(a.mvp) < 5 && 'Describe your cheapest test (at least 5 words).',
     wordCount(a.stake) < 3 && 'Say what users must commit, and how many of them.',
-    junkFields([a.answer, a.assumption, a.mvp, a.stake]) && 'Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.',
+    junkFields([a.answer, a.assumption, a.mvp, a.stake, hyp.p, hyp.a, hyp.c]) && 'Placeholder text like “test test” is not an answer. Write what you really think, even if it is rough.',
   ].filter(Boolean) as string[]
   const req = {
     kind: 'olympus' as const,
@@ -957,7 +1111,9 @@ export function OlympusTask() {
       `Business model: ${lemnos?.name}: ${lemnos?.pitch}`,
       `God's challenge (${god?.name}): ${god?.q}`,
       `Answer: ${a.answer}`,
-      `Riskiest assumption: ${a.assumption}`,
+      `Hypotheses (one per pillar): proposition: ${hyp.p} | architecture: ${hyp.a} | contributions: ${hyp.c}`,
+      `Marked as riskiest: ${a.riskiest ? PILLARS.find((x) => x.k === a.riskiest)?.label : '(none)'}`,
+      `Riskiest assumption, as tested: ${a.assumption}`,
       `MVP: ${a.mvp}`,
       `What users put at stake, and the threshold: ${a.stake}`,
     ].join('\n'),
@@ -969,9 +1125,9 @@ export function OlympusTask() {
         <p className="kicker">
           <span className="badge ink">Council</span> Pressure-test, then design the test
         </p>
-        <h2>The council on Olympus</h2>
+        <h2 tabIndex={-1}>The council on Olympus</h2>
         <p className="lede">
-          In the Odyssey, the gods meet on Olympus to decide whether Odysseus may go home. Here they question {lemnos?.name ? `“${lemnos.name}”` : 'your model'}. Answer one of them, then tell Zeus how you would test it cheaply.
+          In the Odyssey, the gods meet on Olympus to decide whether Odysseus may go home. Here they question {lemnos?.name ? `“${lemnos.name}”` : 'your model'}. Answer one of them, list the hypotheses your model rests on, then tell Zeus how you would test the riskiest one cheaply.
         </p>
       </div>
       <div className="panel-body">
@@ -990,11 +1146,35 @@ export function OlympusTask() {
             {god && <Field label={`Your answer to ${god.name.split(',')[0]}`} limit={50} rows={3} value={a.answer} onChange={(v) => setA({ ...a, answer: v })} />}
           </div>
           <div className="section">
+            <h3>Three hypotheses, one per pillar</h3>
+            <p className="lede" style={{ marginTop: 0 }}>
+              Your model rests on things you believe but have not proven. Write one for each pillar, then mark the one that would sink the model if it were false and that you know least about: that is the one to test first.
+            </p>
+            {PILLARS.map((x) => (
+              <div key={x.k} className="hyp-row">
+                <Field
+                  label={
+                    <>
+                      <span className={`badge ${x.badge}`}>{x.badge.toUpperCase()}</span> {x.label}: we believe that…
+                    </>
+                  }
+                  limit={25}
+                  value={hyp[x.k]}
+                  onChange={(v) => setHyp(x.k, v)}
+                  placeholder={x.ph}
+                />
+                <button type="button" className="pick small" aria-pressed={a.riskiest === x.k} onClick={() => setA({ ...a, riskiest: x.k, assumption: hyp[x.k] || a.assumption })}>
+                  {a.riskiest === x.k ? 'Riskiest' : 'Mark as riskiest'}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="section">
             <h3>Zeus asks for a test</h3>
             <p className="lede" style={{ marginTop: 0 }}>
               Fail fast, fail small, learn big. A minimum viable product is low-tech, low-scale and low-risk, and tests one hypothesis at a time.
             </p>
-            <Field label="Your riskiest assumption" limit={20} value={a.assumption} onChange={(v) => setA({ ...a, assumption: v })} />
+            <Field label="The riskiest assumption, phrased so a test can prove it wrong" limit={25} value={a.assumption} onChange={(v) => setA({ ...a, assumption: v })} />
             <Field label="The cheapest test (your MVP)" limit={30} value={a.mvp} onChange={(v) => setA({ ...a, mvp: v })} placeholder="e.g. a landing page, a manual pilot with 10 customers, a fake door" />
             <div className="why-box">
               <b>Why this matters:</b> people say yes to an idea for free. Real evidence is when test users give something up: money (a deposit, a pre-order), time (a trial, an interview), data or their name on a letter of intent. Decide before the test what counts as success.
@@ -1013,7 +1193,8 @@ export function OlympusTask() {
             hintBusy={task.hintBusy}
           />
         )}
-        {task.last && !task.editing && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise} onRevise={() => task.setEditing(true)} onRetry={task.retry} busy={task.busy} />}
+        {task.revising && <RevisingNote onCancel={() => (setA(olympus!.answer), task.setEditing(false))} />}
+        {task.last && <GradeView grade={task.last} attempt={task.attempt} canRevise={task.canRevise && !task.editing} onRevise={() => task.setEditing(true)} onRetry={task.editing ? undefined : task.retry} busy={task.busy} />}
       </div>
     </>
   )

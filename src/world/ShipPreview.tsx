@@ -61,24 +61,37 @@ function Model({ style, active }: { style: ShipStyle; active: boolean }) {
   )
 }
 
-function Ticker({ active }: { active: boolean }) {
+function Ticker({ active, onSnap }: { active: boolean; onSnap?: (url: string) => void }) {
   const invalidate = useThree((s) => s.invalidate)
+  const gl = useThree((s) => s.gl)
   useEffect(() => {
     invalidate()
-    if (!active) return
+    // after the first frames, hand back a still image so idle cards need no live WebGL context
+    const t = window.setTimeout(() => {
+      try {
+        onSnap?.(gl.domElement.toDataURL('image/png'))
+      } catch {
+        /* tainted or lost context: keep the live view */
+      }
+    }, 300)
+    if (!active) return () => window.clearTimeout(t)
     const id = window.setInterval(() => invalidate(), 33)
-    return () => window.clearInterval(id)
-  }, [active, invalidate])
+    return () => {
+      window.clearTimeout(t)
+      window.clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, invalidate, gl])
   return null
 }
 
-export function ShipPreview3D({ style, active }: { style: ShipStyle; active: boolean }) {
+export function ShipPreview3D({ style, active, onSnap }: { style: ShipStyle; active: boolean; onSnap?: (url: string) => void }) {
   return (
-    <Canvas className="ship-canvas" frameloop="demand" dpr={[1, 2]} camera={{ position: [1.2, 2.3, 6.4], fov: 32 }} onCreated={({ camera }) => camera.lookAt(0.1, 0.95, 0)}>
+    <Canvas className="ship-canvas" frameloop="demand" dpr={[1, 2]} gl={{ preserveDrawingBuffer: true }} camera={{ position: [1.2, 2.3, 6.4], fov: 32 }} onCreated={({ camera }) => camera.lookAt(0.1, 0.95, 0)}>
       <hemisphereLight args={['#ffe2c2', '#2d5a6e', 1.1]} />
       <directionalLight position={[-4, 6, 5]} intensity={2.4} color={PAL.sun} />
       <Model style={style} active={active} />
-      <Ticker active={active} />
+      <Ticker active={active} onSnap={onSnap} />
     </Canvas>
   )
 }

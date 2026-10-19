@@ -1,5 +1,5 @@
 import { directionById } from '../content/directions'
-import { allText, missingFor, type Landing } from '../content/landing'
+import { allText, isNoFit, missingFor, type Landing } from '../content/landing'
 import type { Grade } from '../store'
 import { maxFor, RUBRICS, type TaskKind } from './rubrics'
 
@@ -15,6 +15,8 @@ export interface GradeRequest {
 }
 
 const TIMEOUT_MS = 30000
+// one id per browser tab, so the server can rate-limit per player rather than per campus network
+const SID = Math.random().toString(36).slice(2, 12)
 
 export async function requestGrade(req: GradeRequest): Promise<Grade> {
   try {
@@ -22,7 +24,7 @@ export async function requestGrade(req: GradeRequest): Promise<Grade> {
     const t = setTimeout(() => ctl.abort(), TIMEOUT_MS)
     const res = await fetch('/api/coach', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-voyage': SID },
       body: JSON.stringify({ mode: 'grade', ...req }),
       signal: ctl.signal,
     })
@@ -31,7 +33,8 @@ export async function requestGrade(req: GradeRequest): Promise<Grade> {
     const data = await res.json()
     return normalise(req.kind, data)
   } catch {
-    return estimate(req)
+    // keep what was sent, so Athena can review it properly once she is reachable
+    return { ...estimate(req), pending: { kind: req.kind, directionId: req.directionId, answer: req.answer, extra: req.extra } }
   }
 }
 
@@ -41,7 +44,7 @@ export async function requestHint(req: GradeRequest, previous: string[]): Promis
     const t = setTimeout(() => ctl.abort(), TIMEOUT_MS)
     const res = await fetch('/api/coach', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-voyage': SID },
       body: JSON.stringify({ mode: 'hint', ...req, previous }),
       signal: ctl.signal,
     })
@@ -69,7 +72,7 @@ function normalise(kind: TaskKind, data: { scores?: { criterion: string; score: 
     max: maxFor(kind),
     feedback: String(data.feedback ?? ''),
     question: String(data.question ?? ''),
-    source: 'ai',
+    source: (data as { model?: string }).model === 'rules' ? 'rules' : 'ai',
   }
 }
 
@@ -85,19 +88,22 @@ function specificity(text: string) {
   const lower = text.toLowerCase()
   const vague = VAGUE.filter((v) => lower.includes(v)).length
   const concrete = /\d/.test(text) || /\b(per|every|each|instead of|at the|through|via|for)\b/i.test(text)
-  const named = /\s[A-Z][a-z]+/.test(text)
-  let s = w >= 12 ? 1 : 1
+  // a capital mid-sentence (not after a full stop) suggests a named actor, product or place
+  const named = /[a-z,;]\s+[A-Z][a-z]+/.test(text)
+  let s = 1
   if ((concrete || named) && w >= 10) s = 2
   if (vague >= 2 && w < 18) s = Math.max(0, s - 1)
   return s
 }
 
+// whole words only: "ai" must not match "maintain"
 function lexHits(text: string, lexicon: string[]) {
-  const lower = text.toLowerCase()
-  return lexicon.filter((k) => lower.includes(k)).length
+  const lower = ` ${text.toLowerCase().replace(/[^\p{L}\p{N}%]+/gu, ' ')} `
+  return lexicon.filter((k) => lower.includes(` ${k.toLowerCase()}`)).length
 }
 
-const CAP: Record<TaskKind, number> = { troy: 4, landing: 4, aeolus: 3, lemnos: 6, olympus: 3 }
+// Always below the maximum, as the review panel promises
+const CAP: Record<TaskKind, number> = { troy: 3, landing: 4, aeolus: 3, lemnos: 6, olympus: 4 }
 
 export function estimate(req: GradeRequest): Grade {
   const rubric = RUBRICS[req.kind]
@@ -106,7 +112,7 @@ export function estimate(req: GradeRequest): Grade {
   const raw: Record<string, number> = {}
   switch (req.kind) {
     case 'troy': {
-      const roles = [e.offer, e.user, e.payer, e.price].filter((x) => words(x ?? '') >= 2).length
+      const roles = [e.offer, e.user, e.payer, e.price].filter((x) => words(x ?? '') >= 1).length
       raw.framing = roles >= 4 && (e.user ?? '') !== (e.payer ?? '') ? 2 : roles >= 3 ? 1 : roles >= 4 ? 2 : 0
       raw.insight = (words(e.frustration ?? '') >= 6 ? 1 : 0) + (words(e.orthodoxy ?? '') >= 6 ? 1 : 0)
       break
@@ -114,6 +120,14 @@ export function estimate(req: GradeRequest): Grade {
     case 'landing': {
       const d = directionById(req.directionId ?? 1)
       const answer = e as Landing
+      if (isNoFit(answer)) {
+        // a reasoned "doesn't fit": the direction's own logic, and the condition under which it would fit
+        const t = String(answer.nofit ?? '')
+        raw.grounded = specificity(t) >= 2 ? 1 : 0
+        raw.logic = lexHits(t, d.lexicon) >= 1 ? 1 : 0
+        raw.consequence = /\b(if|unless|would|only when|as long as|until|provided)\b/i.test(t) ? 1 : 0
+        break
+      }
       const text = allText(answer)
       const hits = lexHits(text, d.lexicon)
       raw.grounded = specificity(text)
@@ -142,17 +156,25 @@ export function estimate(req: GradeRequest): Grade {
     }
     case 'olympus': {
       raw.defence = words(String(e.answer ?? '')) >= 15 ? 1 + (specificity(String(e.answer)) >= 2 ? 1 : 0) : words(String(e.answer ?? '')) >= 6 ? 1 : 0
+      const h = (e.hypotheses ?? {}) as Record<string, string>
+      raw.hypotheses = (['p', 'a', 'c'].every((k) => words(h[k] ?? '') >= 5) ? 1 : 0) + (e.riskiest ? 1 : 0)
       raw.test = (words(String(e.assumption ?? '')) >= 5 && words(String(e.mvp ?? '')) >= 6 ? 1 : 0) + (/\d/.test(String(e.stake ?? '')) ? 1 : 0)
       break
     }
   }
   let scores = rubric.map((c) => ({ criterion: c.label, score: Math.min(c.max, raw[c.key] ?? 0), max: c.max, note: '' }))
-  // the estimate is capped so it never beats a real review
+  // the estimate is capped so it never beats a real review; trim the last of the top-scoring criteria
   let total = scores.reduce((m, s) => m + s.score, 0)
   while (total > CAP[req.kind]) {
-    const i = scores.findIndex((s) => s.score === Math.max(...scores.map((x) => x.score)))
+    const top = Math.max(...scores.map((x) => x.score))
+    const i = scores.map((x) => x.score).lastIndexOf(top)
     scores = scores.map((s, j) => (j === i ? { ...s, score: s.score - 1 } : s))
     total--
+  }
+  // an answer that passed every gate is never stuck at zero by simple checks: only Athena can fail it
+  if (total === 0) {
+    scores = scores.map((s, j) => (j === 0 ? { ...s, score: 1 } : s))
+    total = 1
   }
   const weakest = rubric[scores.reduce((wi, s, i, arr) => (s.score / s.max < arr[wi].score / arr[wi].max ? i : wi), 0)]
   return {
@@ -174,6 +196,17 @@ function fallbackHint(req: GradeRequest, previous: string[]) {
   for (const { i } of order) {
     const q = rubric[i].question
     if (!previous.includes(q)) return q
+  }
+  const nofit = req.kind === 'landing' && isNoFit(req.extra as Landing)
+  if (nofit) {
+    const d = directionById(req.directionId ?? 1)
+    const qs = [
+      `What exactly in your business blocks “${d.name.toLowerCase()}”: a customer, a regulation, a cost, or a step in the value chain?`,
+      'Under what condition would this direction start to fit? Name the one thing that would have to change.',
+      `The case on this island worked for a very different business. Which part of its mechanism could still apply to yours?`,
+    ]
+    const q = qs.find((x) => !previous.includes(x))
+    if (q) return q
   }
   const extra = req.kind === 'landing' && req.directionId ? directionById(req.directionId).questions : []
   return extra.find((q) => !previous.includes(q)) ?? 'Which part of your answer would a sceptical investor attack first, and why?'

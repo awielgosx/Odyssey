@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import type { Grade } from '../store'
 
 export const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0)
@@ -69,7 +69,7 @@ export function Field({
 
 export function GradeView({ grade, attempt, canRevise, onRevise, onRetry, busy }: { grade: Grade; attempt: number; canRevise: boolean; onRevise?: () => void; onRetry?: () => void; busy?: boolean }) {
   return (
-    <div className="grade" role="status">
+    <div className="grade" role="status" tabIndex={-1}>
       <div className="grade-head">
         <h3>{attempt > 1 ? 'Athena’s second review' : 'Athena’s review'}</h3>
         <span className="grade-total">
@@ -91,12 +91,21 @@ export function GradeView({ grade, attempt, canRevise, onRevise, onRetry, busy }
       )}
       {grade.source === 'estimate' && (
         <div className="estimate">
-          <p>Athena could not be reached just now (busy or offline), so this is a provisional estimate from simple checks, capped below full marks. It will be replaced by her real review.</p>
-          {onRetry && (
-            <button className="btn small primary" disabled={busy} onClick={onRetry}>
-              {busy ? 'Athena is reading\u2026' : 'Ask Athena again'}
-            </button>
-          )}
+          <p>
+            Athena could not be reached just now (busy or offline), so this is a <b>provisional estimate</b> from simple checks, always below full marks. It counts for at most half marks in your voyage score until Athena reviews it. You can ask her again now, improve your answer first, or sail on and send all pending answers from Ithaca.
+          </p>
+          <div className="submit-row">
+            {onRetry && (
+              <button className="btn small primary" disabled={busy} onClick={onRetry}>
+                {busy ? 'Athena is reading\u2026' : 'Ask Athena again'}
+              </button>
+            )}
+            {onRevise && (
+              <button className="btn small" disabled={busy} onClick={onRevise}>
+                Edit my answer
+              </button>
+            )}
+          </div>
         </div>
       )}
       {grade.total === 0 && grade.source !== 'estimate' && (
@@ -126,4 +135,65 @@ export function SignToggle({ value, onChange, label }: { value: string; onChange
       ))}
     </span>
   )
+}
+
+// Shown while a reviewed answer is being revised: the review above still counts until resubmitted.
+export function RevisingNote({ onCancel }: { onCancel: () => void }) {
+  return (
+    <div className="hint revising" role="note">
+      <b>You are revising.</b> Athena’s last review still counts until you submit again.{' '}
+      <button type="button" className="link-btn" onClick={onCancel}>
+        Cancel and keep my reviewed answer
+      </button>
+    </div>
+  )
+}
+
+// Modal behaviour for overlays: focus moves in (to [data-autofocus] or the first control), Tab stays
+// inside, Escape runs the given action, and focus returns where it was on close.
+export function useDialog(ref: RefObject<HTMLElement | null>, onEscape?: () => void) {
+  const esc = useRef(onEscape)
+  esc.current = onEscape
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const prev = document.activeElement as HTMLElement | null
+    const focusables = () => [...el.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select, a[href], [tabindex]:not([tabindex="-1"])')]
+    ;(el.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0])?.focus({ preventScroll: true })
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && esc.current) {
+        e.preventDefault()
+        esc.current()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const f = focusables()
+      if (!f.length) return
+      const first = f[0]
+      const last = f[f.length - 1]
+      if (!el.contains(document.activeElement)) {
+        e.preventDefault()
+        first.focus()
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', key)
+    return () => {
+      document.removeEventListener('keydown', key)
+      if (prev && document.contains(prev)) prev.focus({ preventScroll: true })
+    }
+  }, [ref])
+}
+
+export const prefersReducedMotion = () => {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
 }

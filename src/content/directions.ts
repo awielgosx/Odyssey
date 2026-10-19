@@ -26,7 +26,7 @@ export interface Quiz {
 }
 
 // Option lists that come from the student's own Troy and Narrows answers
-export type Source = 'attributes' | 'chain' | 'resources' | 'cutAdd'
+export type Source = 'attributes' | 'lowerable' | 'chain' | 'resources' | 'cutAdd'
 
 export type Step =
   | { kind: 'pick'; id: string; label: string; options?: string[]; source?: Source; other?: boolean }
@@ -71,12 +71,12 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Which move is direction 1, rather than a simple price cut?',
       options: [
-        'A printer that costs more to buy but whose ink costs a tenth as much per page',
-        'A printer 20% cheaper to buy, with ink cartridges priced higher to compensate',
-        'A printer billed per page printed instead of bought outright',
-        'A printer with a premium colour mode for the same price',
+        "A printer that costs more to buy but whose ink costs a tenth as much per page",
+        "A printer 20% cheaper to buy, with ink cartridges priced higher to compensate",
+        "A printer billed per page printed, so the customer never buys the machine",
+        "A printer with a premium colour mode included at the same purchase price",
       ],
-      why: 'Direction 1 looks at total cost over the life of the offer. The cheaper printer with dear ink lowers the entry price but raises the total. Paying per page changes how the customer pays (direction 7), not necessarily how much.',
+      why: 'Direction 1 looks at total cost over the life of the offer. The cheaper printer with dear ink lowers the entry price but raises the total. Paying per page changes how the customer pays (direction 7), not necessarily how much, and a free colour mode adds functionality (direction 4).',
     },
     steps: [
       {
@@ -123,12 +123,12 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Before taking a hassle off its customers, what must a supplier check first in its own value architecture?',
       options: [
-        'That it can do the chore cheaper or better than the customer, since it now carries that cost and risk',
-        'That customers will accept a higher list price for the core product',
-        'That no competitor already sells a product of the same quality',
-        'That its product specifications can be improved before launch',
+        "That it can do the chore cheaper or better than the customer, since it now carries the cost and risk",
+        "That customers will accept a higher list price for the core product once the chore is bundled into it",
+        "That no competitor already offers the same service at the same level of quality and price",
+        "That its product specifications can be upgraded first, so the service has something new to sell",
       ],
-      why: 'A hassle never disappears: it moves. Removing it from the customer (proposition) means someone in your architecture absorbs it, with its cost and risk. Michelin Fleet Solutions had to learn to price that risk.',
+      why: 'A hassle never disappears: it moves. The other checks are about the product or the competition, not about who now carries the chore. Removing it from the customer (proposition) means someone in your architecture absorbs it, with its cost and risk. Michelin Fleet Solutions had to learn to price that risk.',
     },
     steps: [
       { kind: 'pick', id: 'stage', label: 'Where in the customer’s journey is the worst hassle?', options: JOURNEY, other: true },
@@ -165,10 +165,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Most adults never join a gym because they feel intimidated and judged there. Which response targets these non-customers?',
       options: [
-        'A no-frills, “judgement-free” gym with simple machines and a low monthly fee',
-        'More personal trainers and premium equipment for current members',
-        'A discount for members who renew for two years',
-        'A bigger advertising campaign for the existing gyms',
+        "A no-frills, “judgement-free” gym with simple machines and a low monthly fee",
+        "More personal trainers and premium equipment to keep its current members loyal",
+        "A loyalty discount for members who commit to a two-year renewal up front",
+        "A bigger advertising campaign showing how welcoming the existing gyms are",
       ],
       why: 'Non-customers stay away because of a barrier, here fear of being judged. Serving current members better or shouting louder leaves the barrier intact; redesigning the offer removes it.',
     },
@@ -213,10 +213,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Why can Fairphone sell weaker specifications at a mid-range price?',
       options: [
-        'Its buyers weight pride and repairability above the attributes it lowered, so perceived value holds',
-        'Its production costs are far lower, so it can undercut the flagship brands',
-        'Specifications no longer matter to any smartphone buyer',
-        'Mobile operators subsidise it to meet regulations',
+        "Its buyers weight pride and repairability above the attributes it lowered, so perceived value holds",
+        "Its production costs are far lower than the flagships’, so it can undercut them and still make a profit",
+        "Specifications have stopped mattering to smartphone buyers, so a weaker phone loses no value",
+        "Mobile operators subsidise its handsets to meet their own environmental reporting targets",
       ],
       why: 'Perceived value depends on what a segment cares about. Emotion can compensate for lowered function, but only for buyers who weight it. For a gamer chasing performance, the same curve would be non-viable.',
     },
@@ -229,7 +229,7 @@ export const DIRECTIONS: Direction[] = [
         max: 40,
         placeholder: 'Customers buy it for …; we raise / create … by …',
       },
-      { kind: 'pick', id: 'lower', label: 'Not everything can be better. Which Troy attribute do you deliberately lower to pay for it?', source: 'attributes' },
+      { kind: 'pick', id: 'lower', label: 'Not everything can be better. Which Troy attribute do you deliberately lower to pay for it?', source: 'lowerable' },
     ],
     main: 'idea',
     lens: 'The value curve trade-off: an attribute raised or created, and one deliberately lowered.',
@@ -255,10 +255,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Cirque du Soleil charges several times a classic circus ticket. Why does that work?',
       options: [
-        'Having borrowed theatre’s codes, it is compared with a night at the theatre, not with the circus',
-        'Its animal acts were more spectacular than any competitor’s',
-        'It targeted children, who are the least price-sensitive audience',
-        'It kept costs low by touring only small towns',
+        "Having borrowed theatre’s codes, it is compared with a night at the theatre, not with the circus",
+        "Its animal acts were bigger and more spectacular than anything a classic touring circus could afford",
+        "It targeted families with young children, the audience that is least sensitive to ticket price",
+        "It kept its costs low by touring small towns where no other live entertainment competes",
       ],
       why: 'Borrowing from another industry changes the reference point customers judge value and price against. Dropping the animals also cut one of the circus’s biggest costs.',
     },
@@ -297,10 +297,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Which problem must BlaBlaCar solve that a coach company never faces?',
       options: [
-        'Getting enough drivers and passengers at the same time, and making strangers trust each other',
-        'Buying, insuring and maintaining a fleet of vehicles',
-        'Recruiting and training professional drivers',
-        'Securing slots at bus stations in every city',
+        "Getting enough drivers and passengers at the same time, and making strangers trust each other",
+        "Buying, insuring and maintaining a large fleet of vehicles while keeping every seat filled",
+        "Recruiting, training and retaining enough professional coach drivers to cover every single route",
+        "Securing departure slots at bus stations in every city it wants to connect to the network",
       ],
       why: 'Bringing in a new stakeholder creates two sides to win at once (the chicken-and-egg problem) and two value curves to manage. The coach company has the opposite problems: it owns the assets.',
     },
@@ -342,10 +342,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Map the JCDecaux model: who is the user, who decides, and who pays?',
       options: [
-        'User: commuters. Decision-maker: the city. Payer: advertisers',
-        'User: the city. Decision-maker: advertisers. Payer: commuters',
-        'User: commuters. Decision-maker: commuters. Payer: the city',
-        'User: advertisers. Decision-maker: the city. Payer: the city',
+        "User: commuters. Decision-maker: the city. Payer: advertisers",
+        "User: the city. Decision-maker: advertisers. Payer: commuters",
+        "User: commuters. Decision-maker: advertisers. Payer: the city",
+        "User: advertisers. Decision-maker: the city. Payer: commuters",
       ],
       why: 'Three different actors. Once you separate user, decision-maker and payer, a third-party payer becomes an obvious lever.',
     },
@@ -390,10 +390,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Perfect Day sells its protein to food brands rather than launching a consumer dairy brand. Why does that choice help the technology spread?',
       options: [
-        'Food brands keep a familiar ingredient and recipe; only the upstream chain changes, so adoption is easier',
-        'It avoids having to explain fermentation to regulators',
-        'Food brands pay more per kilo than consumers do',
-        'It removes the need for any partners in the value chain',
+        "Food brands keep a familiar ingredient and recipe; only the upstream chain changes, so adoption is easier",
+        "It avoids explaining precision fermentation to food regulators, who only inspect consumer-facing brands",
+        "Food brands pay more per kilo of protein than consumers ever would for a finished dairy product",
+        "It lets Perfect Day run its value chain without any partners, from fermentation tank to shelf",
       ],
       why: 'The technology rebuilds one part of the architecture (inputs and production) while the proposition to the next actor stays familiar. Less change for the customer means faster adoption.',
     },
@@ -432,10 +432,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Redesigning one step forces changes elsewhere. What did Nickel give up so that five-minute opening at a tobacconist could work?',
       options: [
-        'Overdrafts and credit, so it carries no lending risk and needs no credit check',
-        'Payment cards, so it has nothing to post to customers',
-        'Customers without a regular income',
-        'Its banking licence, to escape regulation',
+        "Overdrafts and credit, so it carries no lending risk and needs no credit check",
+        "Its own branches, so the tobacconists carry all the costs of serving customers",
+        "Customers without a regular income, who would make account opening slower",
+        "Mobile banking, so the account can be opened on paper at the counter instead",
       ],
       why: 'Without credit there is no risk to assess, so a tobacconist can open the account in minutes. The redesigned step (distribution) only works because the proposition was narrowed too.',
     },
@@ -476,10 +476,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Desso adds take-back and recycling. Which effect on contributions is most realistic?',
       options: [
-        'Use of scarce resources and waste fall, but Desso must organise and pay for reverse logistics',
-        'Revenue rises immediately and no new costs appear',
-        'Nothing changes for the environment; only the marketing improves',
-        'Costs fall to zero because the recycled material is free',
+        "Use of scarce resources and waste fall, but Desso must organise and pay for reverse logistics",
+        "Revenue rises at once from selling recycled yarn, and the take-back adds no running costs",
+        "Waste falls, but scarce resources rise because recycling uses more raw material than it saves",
+        "Costs fall straight away because collected carpets replace all virgin material at no charge",
       ],
       why: 'An added step is never free: environmental contributions improve, while financial ones face new costs (collection, sorting) that must be offset by cheaper inputs or a price premium.',
     },
@@ -514,14 +514,14 @@ export const DIRECTIONS: Direction[] = [
     definition: 'Find new sources for what you depend on: materials, money, expertise or ideas, including what others throw away.',
     caseTitle: 'Hermès Petit h',
     caseText:
-      'Hermès rejects precious leather, silk and porcelain for the slightest flaw. Since 2010, Petit h gives these offcuts to artists and craftspeople, who turn them into one-off objects sold in a few pop-up exhibitions around the world.',
+      'Hermès rejects precious leather, silk and porcelain for the slightest flaw. Since 2010, Petit h gives these offcuts to artists and craftspeople, who turn them into one-off objects sold in its own space in Paris and in travelling pop-up sales around the world.',
     quiz: {
       question: 'Why does Petit h strengthen rather than dilute the Hermès brand, even though its input is waste?',
       options: [
-        'Craftsmanship and uniqueness turn rejects into rare objects, so the luxury promise holds',
-        'It sells the offcuts cheaply through outlet stores',
-        'It replaces the core collections with recycled ones',
-        'It uses synthetic substitutes that look like leather',
+        "Craftsmanship and uniqueness turn rejects into rare objects, so the luxury promise holds",
+        "Selling the offcuts cheaply through outlets reaches younger buyers who later trade up to bags",
+        "Recycled pieces gradually replace the core collections, so the brand looks sustainable",
+        "Synthetic substitutes that look like leather cut costs while keeping the Hermès look",
       ],
       why: 'A new input only works if the proposition stays coherent. Here waste plus the brand’s know-how produces rarity, which is exactly what luxury sells.',
     },
@@ -568,10 +568,10 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Why does it make sense for rival carmakers to co-own a charging network?',
       options: [
-        'Charging is a shared bottleneck: nobody wins buyers on chargers, but everyone loses if there are none',
-        'They plan to merge their brands in the long run',
-        'Charging stations are their main source of profit',
-        'Regulation forbids carmakers from building chargers alone',
+        "Charging is a shared bottleneck: nobody wins buyers on chargers, but everyone loses if there are none",
+        "Co-owning the chargers prepares a merger of their brands, which is the partners’ real long-term plan",
+        "Charging stations will become their main source of profit once electric cars outsell petrol",
+        "Regulators require carmakers to build charging networks jointly rather than one brand alone",
       ],
       why: 'Co-operate where no one can differentiate, compete where you can. Pooling resources on shared infrastructure lowers each partner’s capital employed.',
     },
@@ -613,12 +613,12 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'Which of these is a complementor for an electric-car maker?',
       options: [
-        'A network of fast-charging stations',
-        'The company that supplies its battery cells',
-        'Another electric-car brand',
-        'A car-rental firm that buys its cars',
+        "A network of fast-charging stations along the motorways",
+        "The company that supplies its battery cells and modules",
+        "Another electric-car brand selling in the same markets",
+        "A car-rental firm that buys its cars for its own fleet",
       ],
-      why: 'A complementor makes your offer more valuable when customers use both. The battery maker is a supplier, the other brand a competitor, and the rental firm a client.',
+      why: 'A complementor makes your offer more valuable when customers use both. The battery maker is a supplier, the other brand a competitor, and the rental firm a client. On island 12, rival carmakers co-owned chargers (a partnership); here the charging network is someone else’s business whose existence makes your car worth more (a complementor).',
     },
     steps: [
       {
@@ -662,16 +662,16 @@ export const DIRECTIONS: Direction[] = [
     quiz: {
       question: 'A ski resort is busy four months a year. Which move leverages its strategic resources?',
       options: [
-        'Using its lifts, slopes and hotels for summer mountain biking, hiking and conferences',
-        'Lowering winter lift-pass prices to attract more skiers',
-        'Partnering with a ski brand to offer equipment discounts',
-        'Opening a café at the top of the main lift',
+        "Using its lifts, slopes and hotels for summer mountain biking, hiking and conferences",
+        "Cutting winter lift-pass prices to win skiers from the neighbouring resorts in winter",
+        "Partnering with a ski brand so its guests get discounts on equipment and lessons",
+        "Opening a café and shop at the top of the main lift to raise spending per skier",
       ],
-      why: 'Direction 14 redeploys an existing, hard-to-copy resource (a mountain with lifts and beds) towards new uses or customers. The others are directions 1, 12 and 13.',
+      why: 'Direction 14 redeploys an existing, hard-to-copy resource (a mountain with lifts and beds) towards new uses or customers. A price cut changes no business model at all, and the equipment partnership and the café add partners and complements (directions 12 and 13) without putting the idle resource to work.',
     },
     steps: [
       { kind: 'pick', id: 'resource', label: 'Which of your resources or competences?', source: 'resources', other: true },
-      { kind: 'checks', id: 'vrio', label: 'Be honest: tick only what is true', options: ['Valuable to customers', 'Rare among competitors', 'Hard to imitate', 'Under-used today'] },
+      { kind: 'checks', id: 'vrio', label: 'Be honest: tick only what is true', options: ['Valuable to customers', 'Rare among competitors', 'Hard to imitate', 'Organised to exploit it', 'Under-used today'] },
       {
         kind: 'text',
         id: 'idea',
@@ -681,7 +681,7 @@ export const DIRECTIONS: Direction[] = [
       },
     ],
     main: 'idea',
-    lens: 'The VRIO test (valuable, rare, hard to imitate) and a named new customer for the resource.',
+    lens: 'The VRIO test (valuable, rare, hard to imitate, organised to exploit it) and a named new customer for the resource.',
     why: "Some of what you already own (know-how, assets, data, brand) is valuable, rare and hard to copy. Offered to new customers, it can become a business of its own, as AWS did.",
     tip: "Look for what you built for yourself that others would pay to use.",
     questions: [
