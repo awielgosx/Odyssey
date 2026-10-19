@@ -112,7 +112,7 @@ export function Celebration() {
           <div>
             <h2 id="home-title">Welcome home, {names(crew)}!</h2>
             <p>
-              {crew.length > 1 ? 'Together you sailed' : 'You sailed'} from Troy past all fourteen islands, held your plan together before Aeolus, forged a new business model and stood before the gods. Argos recognised you first. So do I.
+              {crew.length > 1 ? 'Together you sailed' : 'You sailed'} from Troy {Object.keys(s.landings).length >= 14 ? 'past all fourteen islands' : 'to Ithaca'}, held your plan together before Aeolus, forged a new business model and stood before the gods. Argos recognised you first. So do I.
             </p>
             <p className="celebrate-score">
               Voyage score <b>{g.outOf20}/20</b> · {g.polytropos ? 'Polytropos, the man of many turns' : g.rank}

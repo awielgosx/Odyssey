@@ -1152,7 +1152,7 @@ textarea {
   .coach {
     left: 8px;
     right: 8px;
-    bottom: calc(62vh + 56px);
+    bottom: calc(62vh + 50px);
     max-width: none;
   }
   .coach > span[aria-hidden],
@@ -1165,13 +1165,23 @@ textarea {
     padding: 6px 34px 6px 10px;
     font-size: 13.5px;
   }
+  /* one slim row of buttons above the panel, Athena's strip above that */
   .nav {
-    right: 12px;
-    bottom: calc(62vh + 8px);
+    left: 8px;
+    right: 8px;
+    bottom: calc(62vh + 6px);
+    justify-content: space-between;
+    gap: 8px;
   }
+  .nav .btn,
   .nav .btn.primary {
-    font-size: 14px;
-    padding: 8px 12px;
+    min-width: 0;
+    max-width: 62%;
+    font-size: 13px;
+    padding: 7px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .toast {
     left: 50%;

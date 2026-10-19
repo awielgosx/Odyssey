@@ -192,7 +192,7 @@ export function Coach() {
         break
       case 'aeolus':
         line = last ? 'Your plan holds. On to the forge.' : 'Pick the promise and what makes it possible, then explain the link between them.'
-        tip = last ? '' : 'The best pair is not always your two highest scores: it is the pair where one makes the other possible.'
+        tip = last ? '' : 'The best pair is not always your two favourite ideas: it is the pair where one makes the other possible.'
         break
       case 'lemnos':
         line = last ? 'Forged. The gods are waiting.' : 'Turn your plan into one business model, starting with the value curve.'

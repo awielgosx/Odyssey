@@ -6,7 +6,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { DIRECTIONS, directionById } from '../content/directions'
-import { flattenLanding, ideaOf, isNoFit, midSentence } from '../content/landing'
+import { flattenLanding, ideaOf, isNoFit, midSentence, type Landing } from '../content/landing'
 import { voyageById } from '../content/voyages'
 import { bestGrade, finalGrade, useGame } from '../store'
 import { GODS, INDICATORS, ZONES } from './Tasks'
@@ -32,9 +32,12 @@ function gather() {
   const aeo = s.aeolus?.answer
   const g = finalGrade(s)
   const startup = s.framing === 'startup'
+  // in demo voyages the teacher may skip the islands: their drafted answers stand in
+  const landing = (id: number) => (s.landings[id]?.answer ?? (s.voyageId !== 'own' ? (s.drafts[`land${id}`] as Landing | undefined) : undefined))
   const chosen = [aeo?.p, aeo?.a]
-    .filter((id): id is number => !!id && !!s.landings[id] && !isNoFit(s.landings[id].answer))
-    .map((id) => ({ d: directionById(id), text: ideaOf(directionById(id), s.landings[id].answer) }))
+    .filter((id): id is number => !!id && !!landing(id) && !isNoFit(landing(id)))
+    .map((id) => ({ d: directionById(id), text: ideaOf(directionById(id), landing(id)) }))
+  const same = (a?: string, b?: string) => strip(a).toLowerCase().replace(/\s*\(.*\)$/, '') === strip(b).toLowerCase().replace(/\s*\(.*\)$/, '')
   const deal = s.landings[12] && !isNoFit(s.landings[12].answer) ? (s.landings[12].answer.deal as string[] | undefined) : undefined
   const zone = ZONES.find((z) => z.id === lem?.zone)
   const god = GODS.find((x) => x.id === oly?.god)
@@ -57,7 +60,7 @@ function gather() {
     context: [
       startup ? 'We are a startup entering this industry. The incumbents’ model works as follows.' : '',
       labelled('Offer today', t?.offer),
-      t && `Users: ${midSentence(t.user)}; decision-makers: ${midSentence(t.decider)}; payers: ${midSentence(t.payer)}.`,
+      t && (same(t.user, t.decider) && same(t.user, t.payer) ? `Users, deciders and payers: ${midSentence(t.payer)}.` : `Users: ${midSentence(t.user)}; decision-makers: ${midSentence(t.decider)}; payers: ${midSentence(t.payer)}.`),
       labelled('Price', t?.price),
       labelled('Customer frustration', t?.frustration),
       labelled('Industry orthodoxy', t?.orthodoxy),
@@ -66,8 +69,9 @@ function gather() {
       .filter(Boolean)
       .join(' '),
     innovation: [
-      sentence(aeo?.sentence),
-      aeo?.p && aeo?.a ? `It combines direction ${aeo.p} (${directionById(aeo.p).name.toLowerCase()}) with direction ${aeo.a} (${directionById(aeo.a).name.toLowerCase()}).` : '',
+      // the biggest contribution gain is shown in the contributions table, not repeated here
+      sentence(strip(aeo?.sentence).replace(/\s*Biggest gain:[^.]*\.?$/, '')),
+      aeo?.p && aeo?.a ? `It combines direction ${aeo.p} (${directionById(aeo.p).short.toLowerCase()}) with direction ${aeo.a} (${directionById(aeo.a).short.toLowerCase()}).` : '',
       labelled('Revenue model', lem?.price),
     ]
       .filter(Boolean)
@@ -76,7 +80,7 @@ function gather() {
       zone && `Expected positioning: ${zone.label.toLowerCase()} (${zone.text.toLowerCase()}).`,
       oly?.assumption && `Riskiest hypothesis${oly.riskiest ? ` (${pillarName[oly.riskiest]})` : ''}: ${sentence(midSentence(oly.assumption))}`,
       labelled('First test', oly?.mvp),
-      labelled('Success threshold, set in advance', oly?.stake),
+      labelled('Success threshold', oly?.stake),
     ]
       .filter(Boolean)
       .join(' '),
@@ -116,10 +120,10 @@ function Curve({ doc }: { doc: Doc }) {
   const lo = Math.min(1, ...before, ...after) // 0 when an attribute was eliminated or created
   const W = 520
   const H = 300
-  const padL = 76
+  const padL = 96
   const padR = 20
   const padT = 20
-  const padB = 92
+  const padB = 108
   const step = (W - padL - padR) / Math.max(1, names.length - 1)
   const y = (v: number) => padT + (5 - v) * ((H - padT - padB) / (5 - lo))
   const path = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${padL + i * step},${y(v)}`).join(' ')
@@ -151,7 +155,7 @@ function Curve({ doc }: { doc: Doc }) {
       ))}
       {names.map((n, i) => (
         <text key={n + i} transform={`translate(${padL + i * step - 4} ${H - padB + 16}) rotate(-35)`} textAnchor="end" fontSize="12" style={{ fill: ink }}>
-          {n.length > 26 ? `${n.slice(0, 25)}…` : n}
+          {n.length > 22 ? `${n.slice(0, 21)}…` : n}
         </text>
       ))}
       <g transform={`translate(${padL} ${H + 6})`} fontSize="12" style={{ fill: ink }}>
