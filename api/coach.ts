@@ -335,7 +335,8 @@ const MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
 const FAST = process.env.GEMINI_FAST_MODEL || 'gemini-flash-lite-latest'
 // Each Gemini model has its own free quota and its own outages, so when one is overloaded (503),
 // rate-limited (429) or unknown (404), the next one in this chain answers instead.
-const CHAIN = [...new Set([MODEL, FAST, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'])]
+// (the 2.5 models only serve keys that used them before, so new keys get 404 there: current models instead)
+const CHAIN = [...new Set([MODEL, FAST, 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'])]
 const KINDS: TaskKind[] = ['troy', 'landing', 'aeolus', 'lemnos', 'olympus']
 const MAX_CHARS = 4000
 const BUDGET_MS = 25000
