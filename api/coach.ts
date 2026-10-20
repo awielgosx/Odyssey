@@ -339,7 +339,8 @@ const FAST = process.env.GEMINI_FAST_MODEL || 'gemini-flash-lite-latest'
 const CHAIN = [...new Set([MODEL, FAST, 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'])]
 const KINDS: TaskKind[] = ['troy', 'landing', 'aeolus', 'lemnos', 'olympus']
 const MAX_CHARS = 4000
-const BUDGET_MS = 25000
+// Gemini is sometimes slow rather than down: give each model time to answer before handing over
+const BUDGET_MS = 52000
 
 // Simple per-instance rate limits. A class on one campus network shares one IP, so the IP limit is
 // generous (a whole room) and each browser has its own, tighter limit (one voyage needs about 40 calls).
@@ -483,7 +484,7 @@ async function callGemini(prompt: string, schema: object, maxTokens: number, fir
       if (left < 2500) throw Object.assign(new Error('budget'), { status: last.status ?? 504, tried: model })
       try {
         // the first model gets a shorter leash so a slow or overloaded one hands over quickly
-        const out = await callGeminiOnce(prompt, schema, maxTokens, light, model, Math.min(left, model === order[0] ? 9000 : 12000))
+        const out = await callGeminiOnce(prompt, schema, maxTokens, light, model, Math.min(left, model === order[0] ? 16000 : 14000))
         return { out, model }
       } catch (e) {
         last = e as { status?: number; message?: string }

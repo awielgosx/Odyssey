@@ -14,7 +14,7 @@ export interface GradeRequest {
   extra?: object // structured fields for the fallback grader
 }
 
-const TIMEOUT_MS = 30000
+const TIMEOUT_MS = 58000
 // one id per browser tab, so the server can rate-limit per player rather than per campus network
 const SID = Math.random().toString(36).slice(2, 12)
 
